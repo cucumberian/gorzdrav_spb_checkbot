@@ -42,7 +42,7 @@ class SqliteDb:
         self.connection.commit()
     
     def add_doctor(self, doctor_id, speciality_id, hospital_id: int) -> str:
-        print(f"{doctor_id = } {speciality_id = } {hospital_id = }")
+        # print(f"{doctor_id = } {speciality_id = } {hospital_id = }")
         q = """INSERT OR IGNORE INTO doctors (id, doctor_id, speciality_id, hospital_id) values (?, ?, ?, ?)"""
         id = f"{hospital_id}_{speciality_id}_{doctor_id}"
         self.cursor.execute(q, (id, doctor_id, speciality_id, hospital_id))
@@ -104,11 +104,13 @@ class SqliteDb:
                 doctors.id == (SELECT doctor_id FROM users WHERE id == ?)
         ;
         """
+
         self.cursor.execute(q, (user_id, ))
         result = self.cursor.fetchone()
         try:
             return {'hospital_id': result[0], 'speciality_id': result[1], 'doctor_id': result[2]}
-        except:
+        except Exception as e:
+            print(str(e))
             return None
     
     def get_active_doctors(self) -> list:

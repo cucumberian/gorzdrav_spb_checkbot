@@ -1,6 +1,7 @@
 import telebot
 import requests
 import time
+import json
 import modules.validate
 import modules.net
 import modules.db
@@ -9,8 +10,6 @@ import multiprocessing
 
 from config import Config
 
-
-print(Config.bot_token)
 
 bot = telebot.TeleBot(Config.bot_token)
 
@@ -76,7 +75,6 @@ def get_status(message):
                 hospital_id=hospital_id
             )
             if doctor:
-                print(doctor.info)
                 checked = db.get_user_ping_status(user_id=user_id)
                 text = f"{doctor}\nСтатус проверки: {'Вкл' if checked else 'Откл'}"
                 bot.reply_to(message, text)
@@ -89,16 +87,19 @@ def get_status(message):
 )
 def get_text_messages(message):
     text = message.text
-    # bot.reply_to(message, "url detected\n"+text)
+    bot.reply_to(message, "url detected\n"+text)
     parse_result = gorzdrav.url_parse(text)
     user_id = message.from_user.id
     db = modules.db.SqliteDb(file=Config.db_file)
     db.update_user_time(user_id)
     if parse_result:
-        # bot.reply_to(message, json.dumps(parse_result, indent=4))
+        bot.reply_to(message, "Результат парсинга:\n" + json.dumps(parse_result, indent=4))
         doc_id = db.add_doctor(**parse_result)
         db.add_user_doctor(user_id, doctor_id=doc_id)
         doctor_ids = db.get_user_doctor(user_id)
+        if not doctor_ids:
+            bot.reply_to(message, "Доктор не найден на сайте горздрава. Проверьте ссылки.")
+            return
         doctor = gorzdrav.get_doctor(
             doctor_id=doctor_ids.get('doctor_id'), 
             speciality_id=doctor_ids.get('speciality_id'), 
@@ -110,14 +111,27 @@ def get_text_messages(message):
 
 
 # send message to telegram with requests.post
-
 def send_message(message, api_token: str, chat_id):
+    """
+    Отправка сообщений в телеграм пользовтелю через requests.post
+    :param message: сообщение
+    :param api_token: токен бота
+    :param chat_id: id чата
+    :return: None
+    """
     url = f'https://api.telegram.org/bot{api_token}/sendMessage'
     data = {'chat_id': chat_id, 'text': message}
     requests.post(url, data=data)
 
 
 def checker(bot_token,  db_file, timeout_secs=60):
+    """
+    Periodically checks for free Tickets and send messages to users
+    :param bot_token: telegram bot token
+    :param db_file: sqlite db filename
+    :param timeout_secs: timeout for checking in seconds
+    :return: None
+    """
     print("checker process started")
     gorzdrav = modules.net.GorzdravSpbAPI()
     db = modules.db.SqliteDb(file=db_file)
@@ -136,7 +150,6 @@ def checker(bot_token,  db_file, timeout_secs=60):
                     time.sleep(0.1)
         
         time.sleep(timeout_secs)
-
         
 
 
