@@ -137,18 +137,23 @@ def checker(bot_token,  db_file, timeout_secs=60):
     db = modules.db.SqliteDb(file=db_file)
 
     while True:
-        doctors_dicts = db.get_active_doctors()
-        for d in doctors_dicts:
-            doc = gorzdrav.get_doctor(**d)
-            if doc.is_free:
-                doc_db_id = f"{doc.hospital_id}_{doc.speciality_id}_{doc.id}"
-                doc_users = db.get_users_by_doctor(doc_db_id)
-                print(f"{doc_users = }")
-                text = f"{doc}"
-                for u in doc_users:
-                    send_message(message=text, api_token=bot_token, chat_id = u)
-                    time.sleep(0.1)
-        
+        try:
+            doctors_dicts = db.get_active_doctors()
+            for d in doctors_dicts:
+                doc = gorzdrav.get_doctor(**d)
+                if doc and doc.is_free:
+                    doc_db_id = f"{doc.hospital_id}_{doc.speciality_id}_{doc.id}"
+                    doc_users = db.get_users_by_doctor(doc_db_id)
+                    if not doc_users:
+                        continue
+                    print(f"{doc_users = }")
+                    text = f"{doc}"
+                    for u in doc_users:
+                        send_message(message=text, api_token=bot_token, chat_id = u)
+                        time.sleep(0.1)
+        except Exception as e:
+            print(str(e))
+            
         time.sleep(timeout_secs)
         
 
