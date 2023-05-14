@@ -106,7 +106,10 @@ class SqliteDb:
         """
         self.cursor.execute(q, (user_id, ))
         result = self.cursor.fetchone()
-        return {'hospital_id': result[0], 'speciality_id': result[1], 'doctor_id': result[2]}
+        try:
+            return {'hospital_id': result[0], 'speciality_id': result[1], 'doctor_id': result[2]}
+        except:
+            return None
     
     def get_active_doctors(self) -> list:
         """
