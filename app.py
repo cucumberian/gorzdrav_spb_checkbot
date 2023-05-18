@@ -2,11 +2,11 @@ import telebot
 import requests
 import time
 import json
-import multiprocessing
-
 import modules.validate
 import modules.net
 import modules.db
+
+import multiprocessing
 
 from config import Config
 
@@ -63,7 +63,6 @@ def get_status(message):
         bot.reply_to(message, 'Вы еще не добавили врача\nПришлите боту ссылку с сайта https://gorzdrav.spb.ru/ с врачем.')
         return
     else:
-        # bot.reply_to(message, json.dumps(doctor_params, indent=4))
         doctor_id = doctor_params.get('doctor_id') 
         speciality_id = doctor_params.get('speciality_id') 
         hospital_id = doctor_params.get('hospital_id')

@@ -42,6 +42,7 @@ class SqliteDb:
         self.connection.commit()
     
     def add_doctor(self, doctor_id, speciality_id, hospital_id: int) -> str:
+        # print(f"{doctor_id = } {speciality_id = } {hospital_id = }")
         q = """INSERT OR IGNORE INTO doctors (id, doctor_id, speciality_id, hospital_id) values (?, ?, ?, ?)"""
         id = f"{hospital_id}_{speciality_id}_{doctor_id}"
         self.cursor.execute(q, (id, doctor_id, speciality_id, hospital_id))
@@ -51,12 +52,12 @@ class SqliteDb:
     def get_user_ping_status(self, user_id: int) -> bool:
         q = """
         SELECT
-            id
+            users.is_active_ping
         FROM users
         WHERE users.id = ?;
         """
         self.cursor.execute(q, (user_id, ))
-        result = self.cursor.fetchone()
+        result = self.cursor.fetchone()[0]
         return bool(result)
 
     def _set_user_ping_status(self, user_id: int, status: int=0) -> None:
@@ -103,6 +104,7 @@ class SqliteDb:
                 doctors.id == (SELECT doctor_id FROM users WHERE id == ?)
         ;
         """
+
         self.cursor.execute(q, (user_id, ))
         result = self.cursor.fetchone()
         try:
