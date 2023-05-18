@@ -2,18 +2,18 @@ import telebot
 import requests
 import time
 import json
+import multiprocessing
+
 import modules.validate
 import modules.net
 import modules.db
-
-import multiprocessing
 
 from config import Config
 
 
 bot = telebot.TeleBot(Config.bot_token)
-
 gorzdrav = modules.net.GorzdravSpbAPI()
+
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
@@ -138,7 +138,9 @@ def checker(bot_token,  db_file, timeout_secs=60):
 
     while True:
         try:
+            print(f"checker iteration")
             doctors_dicts = db.get_active_doctors()
+            print(doctors_dicts)
             for d in doctors_dicts:
                 doc = gorzdrav.get_doctor(**d)
                 if doc and doc.is_free:
@@ -168,6 +170,7 @@ if __name__ == "__main__":
     print("Bot supports_inline_queries: " + str(bot.get_me().supports_inline_queries))
     print("Bot started")
 
+    # запускаем процесс с отправкой уведомлений
     checker = multiprocessing.Process(
         target=checker, 
         name='gorzdrav_checker', 
