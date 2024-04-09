@@ -3,9 +3,9 @@ import os
 import random
 from datetime import datetime
 from modules.db import SqliteDb
-from modules.models import User
-from modules.models import Doctor
-from modules.models import DoctorToCreate
+from models.models import User
+from models.models import Doctor
+from models.models import DoctorToCreate
 
 
 TEST_DB = "test.db"

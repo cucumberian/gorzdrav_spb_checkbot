@@ -1,179 +1,218 @@
+from functools import wraps
 import telebot
-import requests
-import time
-import json
-import modules.validate
-import modules.net
-import modules.db
 
-import multiprocessing
-
+from queries.orm import SyncOrm
 from config import Config
-import modules.models as models
+from modules import validate
+from gorzdrav.api import Gorzdrav
+from models import pydantic_models
+from db import models as db_modelspyth
 
-bot = telebot.TeleBot(Config.bot_token)
-gorzdrav = modules.net.GorzdravSpbAPI()
+print(f"{Config.bot_token = }")
+bot = telebot.TeleBot(token=Config.bot_token)
+# gorzdrav = modules.net.GorzdravSpbAPI()
+
+#####################
+#
+#
+#
+# 2024-04-08
+# fixed: regex, чтобы соответствовать типам данных модели api
+#
+#
+######################
+
+
+def is_user_profile(func):
+    """
+    Декоратор для проверки наличия профиля пользователя.
+    Если профиля нет, то отправляет сообщение об ошибке и возвращает None.
+    """
+
+    @wraps(func)
+    def wrapper(message, *args, **kwargs):
+        user_id = message.from_user.id
+        user = SyncOrm.get_user(user_id=user_id)
+        if not user:
+            bot.reply_to(
+                message,
+                "У вас нет профиля.\n"
+                + "Используйте команду /start для создания профиля.",
+            )
+            return
+        return func(message, *args, **kwargs)
+
+    return wrapper
+
+
+def is_user_have_doctor(func):
+    """
+    Декоратор для проверки наличия врача у пользователя.
+    Если врача нет, то отправляет сообщение об ошибке и возвращает None.
+    """
+
+    @wraps(func)
+    def wrapper(message, *args, **kwargs):
+        user_id = message.from_user.id
+        doctor = SyncOrm.get_user_doctor(user_id=user_id)
+        if not doctor:
+            bot.reply_to(
+                message=message,
+                text="Пожалуйста добавьте врача.\n"
+                + "Пришлите боту ссылку"
+                + " с сайта https://gorzdrav.spb.ru/ с врачом.",
+            )
+            return None
+        return func(message, *args, **kwargs)
+
+    return wrapper
 
 
 @bot.message_handler(commands=["start"])
 def start_message(message):
     user_id = message.from_user.id
-    db = modules.db.SqliteDb(file=Config.db_file)
-    # удаляем и создаем пользователя заново
-    db.del_user(user_id)
-    db.add_user(user_id)
-    bot.reply_to(message, "Ваш профиль создан.")
+    SyncOrm.delete_user(user_id=user_id)
+    SyncOrm.add_user(user_id=user_id)
+    bot.reply_to(
+        message,
+        "Ваш профиль создан.\n"
+        + "Используйте команду \delete для удаления профиля.",
+    )
 
 
 @bot.message_handler(commands=["help"])
 def get_help(message):
-    text = """/start - старт
+    text = """/start - создать профиль пользователя
 /status - узнать текущий статус талонов у врача
-/on - включить отслеживание
-/off - отключить отслеживание
+/on - включить отслеживание талонов
+/off - отключить отслеживание талонов
+/delete - удалить профиль пользователя
 
-Пришлите боту ссылку с горздрава на врача, чтобы его наблюдать.
-    """
+# Пришлите боту ссылку с горздрава на врача, чтобы его наблюдать."""
     bot.reply_to(message, text)
 
 
 @bot.message_handler(commands=["id"])
 def id_message(message):
-    bot.send_message(message.chat.id, "Ваш id: " + str(message.chat.id))
+    """
+    Пишет пользователю его telegram id.
+    """
+    bot.send_message(
+        message.chat.id, "Ваш telegram id: " + str(message.chat.id)
+    )
 
 
 @bot.message_handler(commands=["on"])
+@is_user_profile
+@is_user_have_doctor
 def ping_on(message):
+    """
+    Устанавливает статус проверки талонов для пользователя в True (Включена).
+    """
     user_id = message.from_user.id
-    db = modules.db.SqliteDb(file=Config.db_file)
-    db.set_user_ping(user_id)
+    SyncOrm.update_user(user_id=user_id, ping_status=True)
     bot.reply_to(message, "Проверка включена")
 
 
 @bot.message_handler(commands=["off"])
+@is_user_profile
+@is_user_have_doctor
 def ping_off(message):
+    """
+    Устанавливает статус проверки талонов для пользователя в False (Отключена).
+    """
     user_id = message.from_user.id
-    db = modules.db.SqliteDb(file=Config.db_file)
-    db.clear_user_ping(user_id)
+    SyncOrm.update_user(user_id=user_id, ping_status=False)
     bot.reply_to(message, "Проверка выключена")
 
 
-@bot.message_handler(commands=["status"])
-def get_status(message):
+@bot.message_handler(commands=["delete"])
+@is_user_profile
+def delete_user(message):
+    """
+    Удаляет профиль пользователя из базы данных.
+    """
     user_id = message.from_user.id
-    db = modules.db.SqliteDb(file=Config.db_file)
-    doc: models.Doctor = db.get_user_doctor(user_id)
-    if doc is None:
+    SyncOrm.delete_user(user_id=user_id)
+    bot.reply_to(
+        message,
+        "Ваш профиль удалён.\n"
+        + "Выполните команду /start за создания профиля.",
+    )
+
+
+@bot.message_handler(commands=["status"])
+@is_user_profile
+@is_user_have_doctor
+def get_status(message):
+    """
+    Пишет пользователю информацию о его враче.
+    """
+    user_id = message.from_user.id
+    user: db_models.UserOrm | None = SyncOrm.get_user(user_id=user_id)
+    user_doctor: db_models.DoctorOrm | None = SyncOrm.get_user_doctor(
+        user_id=user_id
+    )
+    gorzdrav_doctor: pydantic_models.ApiDoctor | None = Gorzdrav.get_doctor(
+        lpuId=user_doctor.lpuId,
+        specialtyId=user_doctor.specialtyId,
+        doctorId=user_doctor.doctorId,
+    )
+    if not gorzdrav_doctor:
+        doctor_url = Gorzdrav._Gorzdrav__get_doctors_endpoint(
+            lpu_id=user_doctor.lpuId,
+            specialty_id=user_doctor.specialtyId,
+        )
         bot.reply_to(
-            message,
-            (
-                "Вы еще не добавили врача\nПришлите боту ссылку"
-                + " с сайта https://gorzdrav.spb.ru/ с врачем."
-            ),
+            message=message,
+            text=f"Не удалось получить данные врача по ссылке {doctor_url}\n"
+            + "Попробуйте позднее или задайте снова врача.",
         )
         return
-
-    if doc.doctor_id and doc.speciality_id and doc.hospital_id:
-        doctor: models.ApiDoctor = gorzdrav.get_doctor(
-            doctor_id=doc.doctor_id,
-            speciality_id=doc.speciality_id,
-            hospital_id=doc.hospital_id,
-        )
-        if not doctor:
-            bot.reply_to(message, "Врач не найден")
-            return
-        checked = db.get_user_ping_status(user_id=user_id)
-        text = f"{doctor}\nСтатус проверки: {'Вкл' if checked else 'Откл'}"
-        bot.reply_to(message, text)
+    bot.reply_to(
+        message=message, text=f"{gorzdrav_doctor}\n" + user.ping_status_str
+    )
 
 
 @bot.message_handler(
-    func=lambda i: modules.validate.is_domain(i.text)
-    or modules.validate.is_url(i.text),
     content_types=["text"],
+    func=lambda m: validate.is_domain(m.text) or validate.is_url(m.text),
 )
-def get_text_messages(message):
-    text = message.text
-    bot.reply_to(message, "url detected\n" + text)
-    parse_result = gorzdrav.url_parse(text)
-    user_id = message.from_user.id
-    db = modules.db.SqliteDb(file=Config.db_file)
-    db.update_user_time(user_id)
-    if parse_result:
+@is_user_profile
+def get_url(message):
+    """
+    Получем ссылку на врача и добавляем в бд
+    Если ссылка не валидна, то сигнализируем пользователю.
+    """
+    print(f"{message.text = }")
+    parsing_result: dict | None = validate.get_ids_from_gorzdrav_url(
+        url=message.text
+    )
+    print(f"{parsing_result = }")
+    if not parsing_result:
         bot.reply_to(
             message,
-            "Результат парсинга:\n" + json.dumps(parse_result, indent=4),
+            "Не могу понять врача по ссылке. \
+            Пожалуйста пришлите ссылку на врача, как выберите его расписание.",
         )
-        doc_id = db.add_doctor(**parse_result)
-        db.add_user_doctor(user_id, doctor_id=doc_id)
-        doctor_ids = db.get_user_doctor(user_id)
-        if not doctor_ids:
-            bot.reply_to(
-                message,
-                "Доктор не найден на сайте горздрава. Проверьте ссылки.",
-            )
-            return
-        doctor = gorzdrav.get_doctor(
-            doctor_id=doctor_ids.get("doctor_id"),
-            speciality_id=doctor_ids.get("speciality_id"),
-            hospital_id=doctor_ids.get("hospital_id"),
-        )
-        bot.reply_to(message, f"к вам добавлен врач: {doctor}")
-    else:
-        bot.reply_to(message, "не удалось получить данные из ссылки")
+        return
+    lpuId = parsing_result["lpuId"]
+    specialtyId = parsing_result["specialtyId"]
+    doctorId = parsing_result["doctorId"]
+    user_id: int = message.from_user.id
 
-
-# send message to telegram with requests.post
-def send_message(message, api_token: str, chat_id):
-    """
-    Отправка сообщений в телеграм пользовтелю через requests.post
-    :param message: сообщение
-    :param api_token: токен бота
-    :param chat_id: id чата
-    :return: None
-    """
-    url = f"https://api.telegram.org/bot{api_token}/sendMessage"
-    data = {"chat_id": chat_id, "text": message}
-    requests.post(url, data=data)
-
-
-def checker(bot_token, db_file, timeout_secs=60):
-    """
-    Periodically checks for free Tickets and send messages to users
-    :param bot_token: telegram bot token
-    :param db_file: sqlite db filename
-    :param timeout_secs: timeout for checking in seconds
-    :return: None
-    """
-    print("checker process started")
-    gorzdrav = modules.net.GorzdravSpbAPI()
-    db = modules.db.SqliteDb(file=db_file)
-
-    while True:
-        try:
-            print(f"checker iteration")
-            doctors_dicts = db.get_active_doctors()
-            print(doctors_dicts)
-            for d in doctors_dicts:
-                doc = gorzdrav.get_doctor(**d)
-                if doc and doc.is_free:
-                    doc_db_id = (
-                        f"{doc.hospital_id}_{doc.speciality_id}_{doc.id}"
-                    )
-                    doc_users = db.get_users_by_doctor(doc_db_id)
-                    if not doc_users:
-                        continue
-                    print(f"{doc_users = }")
-                    text = f"{doc}"
-                    for u in doc_users:
-                        send_message(
-                            message=text, api_token=bot_token, chat_id=u
-                        )
-                        time.sleep(0.1)
-        except Exception as e:
-            print(str(e))
-
-        time.sleep(timeout_secs)
+    doctor: pydantic_models.ApiDoctor | None = Gorzdrav.get_doctor(
+        lpuId=lpuId, specialtyId=specialtyId, doctorId=doctorId
+    )
+    bot.reply_to(message=message, text=f"{doctor}")
+    # добавляем врача в бд
+    doctor_id: str = SyncOrm.add_doctor(
+        lpuId=lpuId,
+        specialtyId=specialtyId,
+        doctorId=doctorId,
+    )
+    # добавляем врача к пользователю
+    SyncOrm.update_user(user_id=user_id, doctor_id=doctor_id)
 
 
 if __name__ == "__main__":
@@ -193,16 +232,17 @@ if __name__ == "__main__":
     print("Bot started")
 
     # запускаем процесс с отправкой уведомлений
-    checker = multiprocessing.Process(
-        target=checker,
-        name="gorzdrav_checker",
-        kwargs={
-            "bot_token": Config.bot_token,
-            "timeout_secs": Config.checker_timeout_secs,
-            "db_file": Config.db_file,
-        },
-        daemon=True,
-    )
-    checker.start()
+    # теперь работает через докер
+    # checker = multiprocessing.Process(
+    #     target=checker,
+    #     name="gorzdrav_checker",
+    #     kwargs={
+    #         "bot_token": Config.bot_token,
+    #         "timeout_secs": Config.checker_timeout_secs,
+    #         "db_file": Config.db_file,
+    #     },
+    #     daemon=True,
+    # )
+    # checker.start()
 
     bot.polling(none_stop=True)

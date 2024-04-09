@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel
-from .net import GorzdravSpbAPI
+from ..modules.net import GorzdravSpbAPI
 
 
 class DbDoctorToCreate(BaseModel):
@@ -22,6 +22,9 @@ class DbUser(BaseModel):
 
 
 class ApiDistrict(BaseModel):
+    """
+    Модель для получения районов через апи
+    """
     id: str
     name: str
 
