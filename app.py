@@ -1,5 +1,6 @@
 from functools import wraps
 import telebot
+import multiprocessing
 
 from queries.orm import SyncOrm
 from config import Config
@@ -7,6 +8,7 @@ from modules import validate
 from gorzdrav.api import Gorzdrav
 from models import pydantic_models
 from db import models as db_modelspyth
+import checker
 
 print(f"{Config.bot_token = }")
 bot = telebot.TeleBot(token=Config.bot_token)
@@ -232,7 +234,13 @@ if __name__ == "__main__":
     print("Bot started")
 
     # запускаем процесс с отправкой уведомлений
-    # теперь работает через докер
+    checker = multiprocessing.Process(
+        target=checker.scheduler,
+        name="gorzdrav_checker",
+        kwargs={},
+        daemon=True,
+    )
+    checker.start()
     # checker = multiprocessing.Process(
     #     target=checker,
     #     name="gorzdrav_checker",

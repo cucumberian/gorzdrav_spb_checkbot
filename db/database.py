@@ -11,3 +11,4 @@ sync_session_factory = sessionmaker(bind=sync_engine)
 
 class Base(DeclarativeBase):
     pass
+

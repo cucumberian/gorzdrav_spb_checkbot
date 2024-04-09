@@ -19,13 +19,7 @@ class Gorzdrav:
     __shared_url = f"{__gorzdrav_api_base_url}/shared"
     __schedule_url = f"{__gorzdrav_api_base_url}/schedule"
     __headers = Config.headers or None
-    """
-    {'errorCode': 37,
-    'message': 'Отсутствуют специальности для записи на приём. Для записи к врачу '
-                'обратитесь в регистратуру или колл-центр медицинской организации',
-    'requestId': 'ae31827b-b4fb-4da9-b191-59b5719de591',
-    'success': False}
-    """
+
 
     @classmethod
     def __get_district_endpoint(cls) -> str:
@@ -228,48 +222,3 @@ class Gorzdrav:
             if doctor.id == doctorId:
                 return doctor
         return None
-
-    @classmethod
-    def get_timetables(cls, lpu_id: int, doctor_id: str) -> list[ApiTimetable]:
-        """
-        Get all timetables from gorzdrav.spb.ru.
-        Args:
-            lpu_id: int: id of lpu.
-            doctor_id: str: id of doctor.
-        Returns:
-            list[ApiTimetable]: list of timetables.
-            Raises:
-            Exception: if request failed.
-        """
-        url = cls.__get_timetable_endpoint(lpu_id=lpu_id, doctor_id=doctor_id)
-        result = cls.__get_result(url)
-        timetables: list[ApiTimetable] = cls.__parse_list_in_result(
-            objects=result, model=ApiTimetable
-        )
-        return timetables
-
-    @classmethod
-    def get_appointments(
-        cls,
-        lpu_id: int,
-        doctor_id: str,
-    ) -> list[ApiAppointment]:
-        url = cls.__get_appointments_endpoint(
-            lpu_id=lpu_id, doctor_id=doctor_id
-        )
-        try:
-            result = cls.__get_result(url)
-        except api_exceptions.NoTicketsException:
-            return []
-        appointments: list[ApiAppointment] = cls.__parse_list_in_result(
-            objects=result, model=ApiAppointment
-        )
-        return appointments
-
-    @classmethod
-    def is_gorzdrav(url: str) -> bool:
-        """
-        Проверяет ссылку - ведет ли она на сайт горздрава
-        """
-        regex = r"^https://gorzdrav.spb.ru/service-free-schedule#"
-        return bool(re.match(regex, url))
