@@ -1,107 +1,119 @@
-import time
 import requests
-import re
+import time
 from typing import Any
-from exceptions import api_exceptions
+from pprint import pprint
+
+from config import Config
+from models.pydantic_models import ApiResponse
 from models.pydantic_models import ApiDistrict
 from models.pydantic_models import ApiLPU
 from models.pydantic_models import ApiSpecialty
 from models.pydantic_models import ApiDoctor
-from models.pydantic_models import ApiTimetable
 from models.pydantic_models import ApiAppointment
-from models.pydantic_models import ApiResponse
-from pprint import pprint
-from config import Config
+from models.pydantic_models import ApiTimetable
+from models.pydantic_models import Doctor
+from exceptions import api_exceptions
 
 
 class Gorzdrav:
-    __gorzdrav_api_base_url = Config.api_url
-    __shared_url = f"{__gorzdrav_api_base_url}/shared"
-    __schedule_url = f"{__gorzdrav_api_base_url}/schedule"
-    __headers = Config.headers or None
-
+    _INFO = """
+        Апи взято с jquery запросов с сайта gorzdrav.spb.ru
+        - https://gorzdrav.spb.ru/_api/api/v2/shared/districts - список районов
+        - https://gorzdrav.spb.ru/_api/api/v2/shared/lpus - список медучреждений во всех районах
+        - https://gorzdrav.spb.ru/_api/api/v2/shared/district/10/lpus - список медучереждений в 10 районе
+        - https://gorzdrav.spb.ru/_api/api/v2/schedule/lpu/229/specialties - информация по всем свободным специальностям в больнице с ид 229
+        - https://gorzdrav.spb.ru/_api/api/v2/schedule/lpu/30/speciality/981/doctors - информация по доступным врачам в больнице 30 по специальности 981
+        - https://gorzdrav.spb.ru/_api/api/v2/schedule/lpu/1138/doctor/36/timetable - расписание врача 36 в больнице 1138
+        - https://gorzdrav.spb.ru/_api/api/v2/schedule/lpu/30/doctor/222618/appointments - доступные назначения к врачу
+    """
+    __api_url = Config.api_url
+    __shared_url = f"{__api_url}/shared"
+    __schedule_url = f"{__api_url}/schedule"
+    __headers = Config.headers
 
     @classmethod
-    def __get_district_endpoint(cls) -> str:
+    def __get_districts_endpoint(cls) -> str:
         """
-        Get endpoint for getting all districts from gorzdrav.spb.ru
+        Маршрут для получения списка районов с gorzdrav.spb.ru
         Returns:
-            str: endpoint for getting all districts.
+            str: эндпоинт для получения списка районов
         """
         return f"{cls.__shared_url}/districts"
 
     @classmethod
-    def __get_lpu_endpoint(cls, district_id: str) -> str:
+    def __get_lpus_endpoint(cls, districtId: str | None = None) -> str:
         """
-        Get endpoint for getting all lpus from gorzdrav.spb.ru
+        Маршрут для получения списка медучреждений в районе.
+        Если ид района не указан то отдается путь для получения списка всех медучреждений
         Args:
-            district_id: str: id of district.
+            districtId: str | None: id района
         Returns:
-            str: endpoint for getting all lpus.
+            str: эндпоинт для получения списка медучреждений
         """
-        return f"{cls.__shared_url}/district/{district_id}/lpus"
+        if districtId is None:
+            return f"{cls.__shared_url}/lpus"
+        return f"{cls.__shared_url}/district/{districtId}/lpus"
 
     @classmethod
-    def __get_specialties_endpoint(cls, lpu_id: int) -> list[ApiSpecialty]:
+    def __get_specialties_endpoint(cls, lpuId: int) -> str:
         """
-        Get endpoint for getting all specialties from gorzdrav.spb.ru
+        Маршрут для получения списка специальностей в медучреждении
         Args:
-            lpu_id: int: id of lpu.
+            lpuId: int: id медучреждения
         Returns:
-            str: endpoint for getting all specialties.
+            str: эндпоинт для получения списка специальностей
         """
-        return f"{cls.__schedule_url}/lpu/{lpu_id}/specialties"
+        return f"{cls.__schedule_url}/lpu/{lpuId}/specialties"
 
     @classmethod
-    def __get_doctors_endpoint(cls, lpu_id: int, specialty_id: str) -> str:
+    def __get_doctors_endpoint(cls, lpuId: int, specialtyId: str) -> str:
         """
-        Get endpoint for getting all doctors from gorzdrav.spb.ru
+        Маршрут для получения списка врачей в медучреждении
         Args:
-            lpu_id: int: id of lpu.
-            specialty_id: str: id of specialty.
+            lpuId: int: id медучреждения
+            specialtyId: str: id специальности
         Returns:
-            str: endpoint for getting all doctors.
+            str: эндпоинт для получения врачей по специальности в поликлинике
         """
-        return f"{cls.__schedule_url}/lpu/{lpu_id}/speciality/{specialty_id}/doctors"
+        return f"{cls.__schedule_url}/lpu/{lpuId}/speciality/{specialtyId}/doctors"
 
     @classmethod
-    def __get_timetable_endpoint(cls, lpu_id: int, doctor_id: str) -> str:
+    def __get_timetable_endpoint(cls, lpuId: int, doctorId: str) -> str:
         """
-        Get endpoint for getting timetable from gorzdrav.spb.ru
+        Маршрут для получения расписания врача
         Args:
-            lpu_id: int: id of lpu.
-            doctor_id: str: id of doctor.
+            lpuId: int: id медучреждения
+            doctorId: str: id врача
         Returns:
-            str: endpoint for getting timetable.
+            str: эндпоинт для получения расписания врача
         """
-        return (
-            f"{cls.__schedule_url}/lpu/{lpu_id}/doctor/{doctor_id}/timetable"
-        )
+        return f"{cls.__schedule_url}/lpu/{lpuId}/doctor/{doctorId}/timetable"
 
     @classmethod
-    def __get_appointments_endpoint(cls, lpu_id: int, doctor_id: str) -> str:
+    def __get_appointments_endpoint(cls, lpuId: int, doctorId: str) -> str:
         """
-        Get endpoint for getting appointments from gorzdrav.spb.ru
+        Маршрут для получения доступных назначений к врачу
         Args:
-            lpu_id: int: id of lpu.
-            doctor_id: str: id of doctor.
+            lpuId: int: id медучреждения
+            doctorId: str: id врача
         Returns:
-            str: endpoint for getting appointments.
+            str: эндпоинт для получения доступных назначений к врачу
         """
-        return f"{cls.__schedule_url}/lpu/{lpu_id}/doctor/{doctor_id}/appointments"
+        return f"{cls.__schedule_url}/lpu/{lpuId}/doctor/{doctorId}/appointments"
 
     @classmethod
     def __get_result(cls, url: str, sleep_time: float = 1.0) -> Any:
         """
-        Get result from response.json from url
+        Возвращает содержимое поля `result` в json после запроса по url
         Args:
-            url: str: url for request.
+            url: str: url для запроса
+            sleep_time: float: задержка перед запросом
         Returns:
-            Any: result of request.
+            Any: результат
         Raises:
-            HttpError: if request failed.
-            Exception: if request failed in json.
-            GorzdravExceptionBase: if json success status is False.
+            HttpError: если произошла ошибка запроса
+            Exception: если не удалось преобразовать в json
+            GorzdravExceptionBase: если `success` в json = False
         """
         if sleep_time > 0.05:
             time.sleep(sleep_time)
@@ -126,99 +138,123 @@ class Gorzdrav:
     @classmethod
     def get_districts(cls) -> list[ApiDistrict]:
         """
-        Get all districts from gorzdrav.spb.ru.
-        Returns:
-            list[ApiDistrict]: list of districts.
-            Raises:
-            Exception: if request failed.
+        Список районов города
         """
-
-        districts = cls.__get_result(cls.__get_district_endpoint())
-        return cls.__parse_list_in_result(districts, ApiDistrict)
-
-    @classmethod
-    def get_lpus(cls, district_id: str) -> list[ApiLPU]:
-        """
-        Get all lpus from gorzdrav.spb.ru.
-        Args:
-            district_id: id of district.
-        Returns:
-            list[ApiLPU]: list of lpus.
-            Raises:
-            Exception: if request failed.
-        """
-        url = cls.__get_lpu_endpoint(district_id)
+        url = cls.__get_districts_endpoint()
         result = cls.__get_result(url)
-        return cls.__parse_list_in_result(objects=result, model=ApiLPU)
+        districts = cls.__parse_list_in_result(result, ApiDistrict)
+        return districts
 
     @classmethod
-    def get_specialties(cls, lpu_id: int) -> list[ApiSpecialty]:
+    def get_lpus(cls, districtId: str | None = None) -> list[ApiLPU]:
         """
-        Get all specialties from gorzdrav.spb.ru.
+        Список медучреждений.
+        Если ид района не указан то получаем медучреждения во всех районах
+        """
+        url = cls.__get_lpus_endpoint(districtId)
+        result = cls.__get_result(url)
+        lpus = cls.__parse_list_in_result(result, ApiLPU)
+        return lpus
+
+    @classmethod
+    def get_specialties(cls, lpuId: int) -> list[ApiSpecialty]:
+        """
+        Список всех специальностей в медучреждении
         Args:
-            lpu_id: int: id of lpu.
+            lpuId: int: id медучреждения
         Returns:
-            list[ApiSpecialty]: list of specialties.
-            Raises:
-            Exception: if request failed.
+            list[ApiSpecialty]: список специальностей
         """
-        url = cls.__get_specialties_endpoint(lpu_id=lpu_id)
+        url = cls.__get_specialties_endpoint(lpuId=lpuId)
         try:
             result = cls.__get_result(url)
         except api_exceptions.NoSpecialtiesException:
             return []
-        specialties: list[ApiSpecialty] = cls.__parse_list_in_result(
-            objects=result, model=ApiSpecialty
-        )
+        specialties = cls.__parse_list_in_result(result, ApiSpecialty)
         return specialties
 
     @classmethod
-    def get_doctors(cls, lpu_id: int, specialty_id: str) -> list[ApiDoctor]:
+    def get_doctors(cls, lpuId: int, specialtyId: str) -> list[ApiDoctor]:
         """
-        Get all doctors from gorzdrav.spb.ru.
+        Список врачей в медучреждении по специальности
         Args:
-            lpu_id: int: id of lpu.
-            specialty_id: str: id of specialty.
+            lpuId: int: id медучреждения по горздраву
+            specialtyId: str: id специальности по горздраву
         Returns:
-            list[ApiDoctor]: list of doctors.
-            Raises:
-            Exception: if request failed.
-        {
-            "success": false,
-            "errorCode": 38,
-            "message": "Отсутствуют специалисты для приёма по выбранной специальности. Обратитесь в регистратуру медорганизации",
-            "requestId": "c29d3cd4-88cd-4d97-acce-aefd98d5264b"
-        }
+            list[ApiDoctor]: список врачей
         """
-        url = cls.__get_doctors_endpoint(
-            lpu_id=lpu_id, specialty_id=specialty_id
-        )
+        url = cls.__get_doctors_endpoint(lpuId=lpuId, specialtyId=specialtyId)
         try:
             result = cls.__get_result(url)
         except api_exceptions.NoDoctorsException:
             return []
-        doctors: list[ApiDoctor] = cls.__parse_list_in_result(
-            objects=result, model=ApiDoctor
-        )
+        doctors = cls.__parse_list_in_result(result, ApiDoctor)
         return doctors
 
     @classmethod
     def get_doctor(
-        cls, lpuId: int, specialtyId: str, doctorId: str
-    ) -> ApiDoctor | None:
+        cls,
+        lpuId: int,
+        specialtyId: str,
+        doctorId: str,
+        districtId: str | None = None,
+    ) -> Doctor | None:
         """
-        Get doctor from gorzdrav.spb.ru.
+        Возвращает доктора по его параметрам
         Args:
-            lpu_id: int: id of lpu.
-            specialty_id: str: id of specialty.
-            doctor_id: str: id of doctor.
+            lpuId: int: id медучреждения по горздраву
+            specialtyId: str: id специальности по горздраву
+            doctorId: str: id врача
+            districtId: str | None: id района
         Returns:
-            ApiDoctor: doctor.
-            Raises:
-            Exception: if request failed.
+            Doctor | None: врач если найден
         """
-        doctors = cls.get_doctors(lpu_id=lpuId, specialty_id=specialtyId)
+        doctors: list[ApiDoctor] = cls.get_doctors(lpuId, specialtyId)
         for doctor in doctors:
             if doctor.id == doctorId:
-                return doctor
+                doc = Doctor(
+                    id=doctor.id,
+                    name=doctor.name,
+                    districtId=districtId,
+                    lpuId=lpuId,
+                    specialtyId=specialtyId,
+                    freeTicketCount=doctor.freeTicketCount,
+                    freeParticipantCount=doctor.freeParticipantCount,
+                    lastDate=doctor.lastDate,
+                    nearestDate=doctor.nearestDate,
+                )
+                return doc
         return None
+
+    @classmethod
+    def get_timetables(cls, lpu_id: int, doctor_id: str) -> list[ApiTimetable]:
+        """
+        Возвращает список расписаний врача из медучреждения с gorzdrav.spb.ru.
+        Args:
+            lpu_id: int: ид медучреждения
+            doctor_id: str: id врача.
+        Returns:
+            list[ApiTimetable]: список расписаний.
+        """
+        url = cls.__get_timetable_endpoint(lpu_id=lpu_id, doctor_id=doctor_id)
+        result = cls.__get_result(url)
+        timetables: list[ApiTimetable] = cls.__parse_list_in_result(
+            objects=result, model=ApiTimetable
+        )
+        return timetables
+
+    @classmethod
+    def get_appointments(
+        cls,
+        lpu_id: int,
+        doctor_id: str,
+    ) -> list[ApiAppointment]:
+        url = cls.__get_appointments_endpoint(lpu_id=lpu_id, doctor_id=doctor_id)
+        try:
+            result = cls.__get_result(url)
+        except api_exceptions.NoTicketsException:
+            return []
+        appointments: list[ApiAppointment] = cls.__parse_list_in_result(
+            objects=result, model=ApiAppointment
+        )
+        return appointments

@@ -2,8 +2,8 @@ import os
 
 
 class Config:
-    bot_token = os.environ["BOT_TOKEN"]
-    db_file = os.environ["DB_FILE"]
+    bot_token = os.environ.get("BOT_TOKEN")
+    db_file = os.environ.get("DB_FILE")
     checker_timeout_secs = int(os.environ.get("CHECKER_TIMEOUT_SECS", 120))
     gorzdrav_api = "https://gorzdrav.spb.ru/_api/api"
     gorzdrav_api_v = "v2"

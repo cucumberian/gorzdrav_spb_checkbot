@@ -21,7 +21,7 @@ class DbDoctor(DbDoctorToCreate):
 
 class DbUser(BaseModel):
     id: int
-    ping_status: bool | None = False
+    ping_status: bool | None = None
     doctor_id: str | None = None
     last_seen: datetime | None = None
 

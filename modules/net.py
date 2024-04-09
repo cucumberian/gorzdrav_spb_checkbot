@@ -16,14 +16,6 @@ from models.pydantic_models import Doctor
 from exceptions import api_exceptions
 
 
-def get_json_data(url: str) -> dict:
-    try:
-        response = requests.get(url)
-        return response.json()
-    except:
-        return None
-
-
 class GorzdravSpbAPI:
     _INFO = """
         Апи взято с jquery запросов с сайта gorzdrav.spb.ru
@@ -107,9 +99,7 @@ class GorzdravSpbAPI:
         Returns:
             str: эндпоинт для получения доступных назначений к врачу
         """
-        return (
-            f"{cls.__schedule_url}/lpu/{lpuId}/doctor/{doctorId}/appointments"
-        )
+        return f"{cls.__schedule_url}/lpu/{lpuId}/doctor/{doctorId}/appointments"
 
     @classmethod
     def __get_result(cls, url: str, sleep_time: float = 1.0) -> Any:
@@ -259,9 +249,7 @@ class GorzdravSpbAPI:
         lpu_id: int,
         doctor_id: str,
     ) -> list[ApiAppointment]:
-        url = cls.__get_appointments_endpoint(
-            lpu_id=lpu_id, doctor_id=doctor_id
-        )
+        url = cls.__get_appointments_endpoint(lpu_id=lpu_id, doctor_id=doctor_id)
         try:
             result = cls.__get_result(url)
         except api_exceptions.NoTicketsException:
