@@ -10,7 +10,3 @@ class Config:
     api_url = f"{gorzdrav_api}/{gorzdrav_api_v}"
     headers = {"User-Agent": "gorzdrav-spb-bot"}
     dsn_string = f"sqlite:///{db_file}"
-
-
-print(f"{Config.bot_token = }")
-print(f"{Config.db_file = }")

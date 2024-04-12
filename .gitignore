@@ -1,6 +1,8 @@
 __pycache__/
 .venv/
 .env
+.vscode/
+.pytest_cache/
 *.json
 *.ipynb
 *.db

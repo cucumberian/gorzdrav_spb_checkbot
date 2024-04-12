@@ -2,10 +2,12 @@ import datetime
 import sqlite3
 import hashlib
 
-from .models import Doctor
-from .models import DoctorToCreate
-from .models import User
+from gorzdrav.models import Doctor
+from models.pydantic_models import DbDoctor
+from models.pydantic_models import DbDoctorToCreate
+from models.pydantic_models import DbUser
 from config import Config
+
 
 class SqliteDb:
     """
@@ -15,15 +17,16 @@ class SqliteDb:
     """
 
     @staticmethod
-    def get_doctor_hash(doctor: DoctorToCreate) -> str:
+    def get_doctor_hash(doctor: DbDoctorToCreate) -> str:
         """
         Генерация хеша доктора
-        params: doctor: Doctor
-        type: doctor: Doctor
-        return: hash: str
+        Args:
+            doctor (DbDoctorToCreate): объект доктора
+        Returns:
+            str: хеш доктора для хранения в БД
         """
         hashed_string = (
-            doctor.doctor_id + doctor.speciality_id + doctor.hospital_id
+            f"{doctor.doctorId}_{doctor.specialtyId}_{doctor.lpuId}"
         )
         return hashlib.shake_128(hashed_string.encode()).hexdigest(10)
 
@@ -45,18 +48,16 @@ class SqliteDb:
 
     def create_table_users(self) -> None:
         """
-        Создание таблицы doctors:
-        id - идентификатор доктора
-        doctor_id - идентификатор доктора в горздраве
-        speciality_id - идентификатор специальности
-        hospital_id - идентификатор организации
-        ping_status - флаг активности проверки
-        last_seen - дата последнего входа в бота
-        для каждого доктора может быть только один юзер, который его наблюдает
+        Создание таблицы users:
+        id:int - идентификатор пользователя в telegram
+        doctor_id:str - идентификатор доктора, к которому относится пользователь
+        ping_status: bool - флаг активности проверки
+        last_seen:datetime - дата последнего входа в бота
+        Для каждого доктора может быть только один юзер, который его наблюдает
         """
         q = """CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY,
-            ping_status INTEGER DEFAULT 0,
+            ping_status INTEGER DEFAULT 0 NOT NULL,
             doctor_id VARCHAR(40),
             last_seen DATETIME,
             FOREIGN KEY (doctor_id) REFERENCES doctors (id)
@@ -67,38 +68,45 @@ class SqliteDb:
     def create_table_doctors(self) -> None:
         """
         Создание таблицы doctors:
-        id - идентификатор доктора
-        doctor_id - идентификатор доктора в горздраве
-        speciality_id - идентификатор специальности доктора
-        hospital_id - идентификатор организации
+        id: str - идентификатор доктора
+        districtId: str - идентификатор района
+        lpuId:int - идентификатор медучреждения
+        specialtyId:str - идентификатор специальности доктора
+        doctorId:str - идентификатор доктора в горздраве
         """
         q = """CREATE TABLE IF NOT EXISTS doctors (
             id VARCHAR(40) PRIMARY KEY,
-            doctor_id TEXT REQUIRED,
-            speciality_id TEXT REQUIRED,
-            hospital_id TEXT REQUIRED
+            districtId TEXT REQUIRED,
+            lpuId INT REQUIRED,
+            specialtyId TEXT REQUIRED,
+            doctorId TEXT REQUIRED
         );"""
         self.cursor.execute(q)
         self.connection.commit()
 
-    def add_user(self, user: User) -> None:
+    def add_user(self, user: DbUser) -> None:
         """
         Добавление пользователя в базу данных
-        params: user: пользователь в telegram
-        type: user: models.User
-        return: None
+        Args:
+            user (DbUser): объект пользователя
+        Returns:
+            None: None
         """
         q = """
         INSERT OR IGNORE INTO USERS
         (id, ping_status, doctor_id, last_seen)
         values (?, ?, ?, ?)
         """
+        if user.last_seen is None:
+            user.last_seen = datetime.datetime.now(datetime.UTC)
+        if user.ping_status is None:
+            user.ping_status = False
         self.cursor.execute(
             q, (user.id, user.ping_status, user.doctor_id, user.last_seen)
         )
         self.connection.commit()
 
-    def get_user(self, user_id: int) -> User | None:
+    def get_user(self, user_id: int) -> DbUser | None:
         if not isinstance(user_id, int):
             raise TypeError("user_id must be int")
         q = """
@@ -113,45 +121,55 @@ class SqliteDb:
             return None
         (id, ping_status, doctor_id, last_seen) = result
         timestamp = datetime.datetime.fromisoformat(last_seen)
-        return User(
+        return DbUser(
             id=id,
             ping_status=ping_status,
             doctor_id=doctor_id,
             last_seen=timestamp,
         )
 
-    def add_doctor(self, doctor: DoctorToCreate) -> str:
+    def add_doctor(self, doctor: DbDoctorToCreate) -> str:
         """
         Добавление доктора в базу данных
-        params: doctor: доктор
-        type: doctor: models.DoctorToCreate
-        return: str: id доктора
+        Args:
+            doctor (DbDoctorToCreate): объект доктора
+        Returns:
+            str: id доктора
         """
         q = """
         INSERT OR IGNORE INTO doctors
-        (id, doctor_id, speciality_id, hospital_id)
-        values (?, ?, ?, ?)
+        (id, districtId, lpuId, specialtyId, doctorId)
+        values (?, ?, ?, ?, ?)
         """
         id = self.__class__.get_doctor_hash(doctor)
         self.cursor.execute(
-            q, (id, doctor.doctor_id, doctor.speciality_id, doctor.hospital_id)
+            q,
+            (
+                id,
+                doctor.districtId,
+                doctor.lpuId,
+                doctor.specialtyId,
+                doctor.doctorId,
+            ),
         )
         self.connection.commit()
         return id
 
-    def get_doctor(self, doctor_id: str) -> Doctor | None:
+    def get_doctor(self, doctor_id: str) -> DbDoctor | None:
         """
         Получение доктора из базы данных
-        params: doctor_id: id доктора
-        type: doctor_id: str
-        return: Doctor | None
+        Args:
+            doctor_id: str - ид доктора в БД
+        Returns:
+            DbDoctor | None: объект доктора
         """
         q = """
         SELECT
             id,
-            doctor_id,
-            speciality_id,
-            hospital_id
+            districtId,
+            lpuId,
+            specialtyId,
+            doctorId
         FROM doctors
         WHERE doctors.id = ?;
         """
@@ -159,15 +177,25 @@ class SqliteDb:
         result = self.cursor.fetchone()
         if result is None:
             return None
-        (id, doctor_id, speciality_id, hospital_id) = result
-        return Doctor(
+        (id, districtId, lpuId, specialtyId, doctorId) = result
+        return DbDoctor(
             id=id,
-            doctor_id=doctor_id,
-            speciality_id=speciality_id,
-            hospital_id=hospital_id,
+            districtId=districtId,
+            lpuId=lpuId,
+            specialtyId=specialtyId,
+            doctorId=doctorId,
         )
 
     def get_user_ping_status(self, user_id: int) -> bool:
+        """
+        Получение флага активности проверки доктора
+        Args:
+            user_id: int - id пользователя
+        Returns:
+            bool: флаг активности проверки доктора
+        """
+        if not isinstance(user_id, int):
+            raise TypeError("user_id must be int")
         q = """
         SELECT
             users.ping_status
@@ -178,9 +206,15 @@ class SqliteDb:
         result = self.cursor.fetchone()[0]
         return bool(result)
 
-    def set_user_ping_status(
-        self, user_id: int, ping_status: bool = False
-    ) -> None:
+    def set_user_ping_status(self, user_id: int, ping_status: bool) -> None:
+        """
+        Устанавливает значение ping_status для пользователя с user_id
+        Args:
+            user_id: int - id пользователя
+            ping_status: bool - флаг активности проверки доктора
+        Returns:
+            None: None
+        """
         q = """
         UPDATE users
             set ping_status = ?
@@ -189,76 +223,97 @@ class SqliteDb:
         self.cursor.execute(q, (ping_status, user_id))
         self.connection.commit()
 
-    def set_user_ping(self, user_id: int) -> None:
-        self.set_user_ping_status(user_id=user_id, ping_status=True)
-
-    def clear_user_ping(self, user_id: int) -> None:
-        self.set_user_ping_status(user_id, 0)
-
     def add_user_doctor(self, user_id: int, doctor_id: str) -> None:
-        q = """ UPDATE users set doctor_id = ? where id = ?;"""
+        """
+        Добавляет доктора к пользователю
+        Args:
+            user_id: int - id пользователя
+            doctor_id: str - id доктора
+        Returns:
+            None: None
+        """
+        q = """UPDATE users set doctor_id = ? where id = ?;"""
         self.cursor.execute(q, (doctor_id, user_id))
         self.connection.commit()
 
-    def get_user_doctor(self, user_id: int) -> DoctorToCreate | None:
+    def get_user_doctor(self, user_id: int) -> DbDoctor | None:
         """
         Возвращает доктора пользователя или None, если доктора нет.
-        params: user_id: id пользователя
-        type: user_id: int
-        return: Doctor | None
+        Args:
+            user_id: int - id пользователя
+        Returns:
+            DbDoctor | None: объект доктора или None
         """
         q = """
         SELECT
             doctors.id,
-            doctors.doctor_id,
-            doctors.speciality_id,
-            doctors.hospital_id
+            doctors.districtId,
+            doctors.lpuId,
+            doctors.specialtyId,
+            doctors.doctorId
         FROM doctors
         WHERE
-                doctors.id == (SELECT doctor_id FROM users WHERE id == ?)
+            doctors.id == (SELECT doctor_id FROM users WHERE id == ?)
         ;
         """
         self.cursor.execute(q, (user_id,))
         result = self.cursor.fetchone()
         if result is None:
             return None
-        (id, doctor_id, speciality_id, hospital_id) = result
-        doctor = Doctor(
+        (id, districtId, lpuId, specialtyId, doctorId) = result
+        doctor = DbDoctor(
             id=id,
-            doctor_id=doctor_id,
-            speciality_id=speciality_id,
-            hospital_id=hospital_id,
+            districtId=districtId,
+            lpuId=lpuId,
+            specialtyId=specialtyId,
+            doctorId=doctorId,
         )
         return doctor
 
-    def del_user(self, user_id: int) -> None:
-        q = """ DELETE FROM users WHERE id = ?"""
+    def delete_user(self, user_id: int) -> None:
+        """
+        Удаляет пользователя из базы данных
+        Args:
+            user_id: int - id пользователя
+        Returns:
+            None: None
+        """
+        q = """DELETE FROM users WHERE id = ?"""
         self.cursor.execute(q, (user_id,))
         self.connection.commit()
 
     def update_user_time(
-        self, user_id: int, timestamp=datetime.datetime.now()
+        self, user_id: int, last_seen: datetime.datetime | None = None
     ):
+        """
+        Обновляет время последней активности пользователя
+        Args:
+            user_id: int - id пользователя
+            last_seen: datetime.datetime | None - время последней активности
+        Returns
+            None: None
+        """
+        if last_seen is None:
+            last_seen = datetime.datetime.now(datetime.UTC)
         q = """ UPDATE users SET last_seen = ? WHERE id = ?;"""
-        self.cursor.execute(
-            q,
-            (
-                timestamp,
-                user_id,
-            ),
-        )
+        self.cursor.execute(q, (last_seen, user_id))
         self.connection.commit()
 
-    def get_active_doctors(self) -> list[Doctor]:
+    def get_active_doctors(self) -> list[DbDoctor]:
         """
-        Вернет список докторов, которыми интересуются пользователи
+        Вернет список докторов, которых пингуют пользователи
+        Args:
+            None: None
+        Returns:
+            list[DbDoctor]: список докторов
         """
         q = """
         SELECT
             doctors.id,
-            doctors.doctor_id,
-            doctors.speciality_id,
-            doctors.hospital_id
+            doctors.districtId,
+            doctors.lpuId,
+            doctors.specialtyId,
+            doctors.doctorId
         FROM doctors
         WHERE doctors.id IN (
             SELECT users.doctor_id FROM users WHERE ping_status == 1
@@ -266,15 +321,26 @@ class SqliteDb:
         """
         self.cursor.execute(q)
         results = self.cursor.fetchall()
-        doctors: list[Doctor] = [
-            Doctor(
-                id=d[0], doctor_id=d[1], speciality_id=d[2], hospital_id=d[3]
+        doctors: list[DbDoctor] = [
+            DbDoctor(
+                id=d[0],
+                districtId=d[1],
+                lpuId=d[2],
+                specialtyId=d[3],
+                doctorId=d[4],
             )
             for d in results
         ]
         return doctors
 
-    def get_users_by_doctor(self, doctor_id: str) -> list[User]:
+    def get_users_by_doctor(self, doctor_id: str) -> list[DbUser]:
+        """
+        Возвращает список пользователей, которые привязаны к доктору
+        Args:
+            doctor_id: str - id доктора
+        Returns:
+            list[DbUser]: список пользователей
+        """
         q = """
             SELECT
                 users.id,
@@ -287,7 +353,7 @@ class SqliteDb:
         self.cursor.execute(q, (doctor_id,))
         results = self.cursor.fetchall()
         users = [
-            User(id=d[0], ping_status=d[1], doctor_id=d[2], last_seen=d[3])
+            DbUser(id=d[0], ping_status=d[1], doctor_id=d[2], last_seen=d[3])
             for d in results
         ]
         return users

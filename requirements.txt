@@ -4,3 +4,4 @@ validators
 dnspython
 pydantic
 sqlalchemy
+pytest

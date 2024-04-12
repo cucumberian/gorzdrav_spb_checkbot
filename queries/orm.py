@@ -21,7 +21,6 @@ class SyncOrm:
             user = db_models.UserOrm(
                 id=user_id,
             )
-            print("user =", user)
             session.add(user)
             session.commit()
 

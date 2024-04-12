@@ -51,6 +51,7 @@ class UserOrm(Base):
             "Статус проверки: "
             + f"{'Включена' if self.ping_status else 'Отключена'}"
         )
+
     def __repr__(self) -> str:
         return f"""UserOrm ({self.id})"""
 
@@ -59,6 +60,7 @@ class DoctorOrm(Base):
     """
     Таблица "doctors"
     id: int - ид строки
+    districtId: str - id района в системе горздрава
     lpuId: int - id медучреждения в системе горздрава
     specialtyId: str - id специальности врача в системе горздрава
     doctorId: str - id врача в системе горздрава
@@ -68,6 +70,7 @@ class DoctorOrm(Base):
     id: Mapped[str] = mapped_column(
         primary_key=True,
     )
+    districtId: Mapped[str]
     lpuId: Mapped[int]
     specialtyId: Mapped[str]
     doctorId: Mapped[str]

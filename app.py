@@ -4,13 +4,14 @@ import multiprocessing
 
 from queries.orm import SyncOrm
 from config import Config
-from modules import validate
+from gorzdrav import validate
 from gorzdrav.api import Gorzdrav
+import gorzdrav.models as api_models
 from models import pydantic_models
-from db import models as db_modelspyth
+from modules.db import SqliteDb
 import checker
 
-print(f"{Config.bot_token = }")
+
 bot = telebot.TeleBot(token=Config.bot_token)
 # gorzdrav = modules.net.GorzdravSpbAPI()
 
@@ -19,7 +20,7 @@ bot = telebot.TeleBot(token=Config.bot_token)
 #
 #
 # 2024-04-08
-# fixed: regex, чтобы соответствовать типам данных модели api
+# fixed: regex, чтобы соответствовать типам данных моделей api
 #
 #
 ######################
@@ -34,7 +35,9 @@ def is_user_profile(func):
     @wraps(func)
     def wrapper(message, *args, **kwargs):
         user_id = message.from_user.id
-        user = SyncOrm.get_user(user_id=user_id)
+        # user = SyncOrm.get_user(user_id=user_id)
+        db = SqliteDb(file=Config.db_file)
+        user = db.get_user(user_id=user_id)
         if not user:
             bot.reply_to(
                 message,
@@ -56,13 +59,16 @@ def is_user_have_doctor(func):
     @wraps(func)
     def wrapper(message, *args, **kwargs):
         user_id = message.from_user.id
-        doctor = SyncOrm.get_user_doctor(user_id=user_id)
+        # doctor = SyncOrm.get_user_doctor(user_id=user_id)
+        db = SqliteDb(file=Config.db_file)
+        doctor = db.get_user_doctor(user_id=user_id)
         if not doctor:
             bot.reply_to(
                 message=message,
                 text="Пожалуйста добавьте врача.\n"
                 + "Пришлите боту ссылку"
-                + " с сайта https://gorzdrav.spb.ru/ с врачом.",
+                + " полученную при выборе врача по адресу"
+                + " https://gorzdrav.spb.ru/service-free-schedule#",
             )
             return None
         return func(message, *args, **kwargs)
@@ -73,12 +79,16 @@ def is_user_have_doctor(func):
 @bot.message_handler(commands=["start"])
 def start_message(message):
     user_id = message.from_user.id
-    SyncOrm.delete_user(user_id=user_id)
-    SyncOrm.add_user(user_id=user_id)
+    db = SqliteDb(file=Config.db_file)
+    db.delete_user(user_id=user_id)
+    new_user = pydantic_models.DbUser(id=user_id)
+    db.add_user(user=new_user)
+    # SyncOrm.delete_user(user_id=user_id)
+    # SyncOrm.add_user(user_id=user_id)
     bot.reply_to(
         message,
         "Ваш профиль создан.\n"
-        + "Используйте команду \delete для удаления профиля.",
+        + "Используйте команду /delete для удаления профиля.",
     )
 
 
@@ -90,7 +100,7 @@ def get_help(message):
 /off - отключить отслеживание талонов
 /delete - удалить профиль пользователя
 
-# Пришлите боту ссылку с горздрава на врача, чтобы его наблюдать."""
+Пришлите боту ссылку расписания врача со страницы свободной записи (https://gorzdrav.spb.ru/service-free-schedule), чтобы добавить врача."""
     bot.reply_to(message, text)
 
 
@@ -112,7 +122,9 @@ def ping_on(message):
     Устанавливает статус проверки талонов для пользователя в True (Включена).
     """
     user_id = message.from_user.id
-    SyncOrm.update_user(user_id=user_id, ping_status=True)
+    # SyncOrm.update_user(user_id=user_id, ping_status=True)
+    db = SqliteDb(file=Config.db_file)
+    db.set_user_ping_status(user_id=user_id, ping_status=True)
     bot.reply_to(message, "Проверка включена")
 
 
@@ -124,7 +136,9 @@ def ping_off(message):
     Устанавливает статус проверки талонов для пользователя в False (Отключена).
     """
     user_id = message.from_user.id
-    SyncOrm.update_user(user_id=user_id, ping_status=False)
+    # SyncOrm.update_user(user_id=user_id, ping_status=False)
+    db = SqliteDb(file=Config.db_file)
+    db.set_user_ping_status(user_id=user_id, ping_status=False)
     bot.reply_to(message, "Проверка выключена")
 
 
@@ -135,7 +149,9 @@ def delete_user(message):
     Удаляет профиль пользователя из базы данных.
     """
     user_id = message.from_user.id
-    SyncOrm.delete_user(user_id=user_id)
+    # SyncOrm.delete_user(user_id=user_id)
+    db = SqliteDb(file=Config.db_file)
+    db.delete_user(user_id=user_id)
     bot.reply_to(
         message,
         "Ваш профиль удалён.\n"
@@ -151,16 +167,19 @@ def get_status(message):
     Пишет пользователю информацию о его враче.
     """
     user_id = message.from_user.id
-    user: db_models.UserOrm | None = SyncOrm.get_user(user_id=user_id)
-    user_doctor: db_models.DoctorOrm | None = SyncOrm.get_user_doctor(
-        user_id=user_id
-    )
-    gorzdrav_doctor: pydantic_models.ApiDoctor | None = Gorzdrav.get_doctor(
+    # user: db_models.UserOrm | None = SyncOrm.get_user(user_id=user_id)
+    # user_doctor: db_models.DoctorOrm | None = SyncOrm.get_user_doctor(
+    #     user_id=user_id
+    # )
+    db = SqliteDb(file=Config.db_file)
+    user = db.get_user(user_id=user_id)
+    user_doctor = db.get_user_doctor(user_id=user_id)
+    gorzdrav_doctor: api_models.ApiDoctor | None = Gorzdrav.get_doctor(
         lpuId=user_doctor.lpuId,
         specialtyId=user_doctor.specialtyId,
         doctorId=user_doctor.doctorId,
     )
-    if not gorzdrav_doctor:
+    if gorzdrav_doctor is None:
         doctor_url = Gorzdrav._Gorzdrav__get_doctors_endpoint(
             lpu_id=user_doctor.lpuId,
             specialty_id=user_doctor.specialtyId,
@@ -170,9 +189,11 @@ def get_status(message):
             text=f"Не удалось получить данные врача по ссылке {doctor_url}\n"
             + "Попробуйте позднее или задайте снова врача.",
         )
-        return
+        return None
+    ping_text = f"Проверка {'включена' if user.ping_status else 'отключена'}."
     bot.reply_to(
-        message=message, text=f"{gorzdrav_doctor}\n" + user.ping_status_str
+        message=message,
+        text=f"{gorzdrav_doctor}\n{ping_text}",
     )
 
 
@@ -186,35 +207,60 @@ def get_url(message):
     Получем ссылку на врача и добавляем в бд
     Если ссылка не валидна, то сигнализируем пользователю.
     """
-    print(f"{message.text = }")
-    parsing_result: dict | None = validate.get_ids_from_gorzdrav_url(
-        url=message.text
-    )
-    print(f"{parsing_result = }")
-    if not parsing_result:
+    parsing_result: (
+        api_models.LinkParsingResult | None
+    ) = validate.get_ids_from_gorzdrav_url(url=message.text)
+    if parsing_result is None:
         bot.reply_to(
             message,
-            "Не могу понять врача по ссылке. \
-            Пожалуйста пришлите ссылку на врача, как выберите его расписание.",
+            "Не могу понять врача по ссылке.\n"
+            + "Пожалуйста пришлите ссылку на врача, "
+            + "как выберите его расписание.",
         )
-        return
-    lpuId = parsing_result["lpuId"]
-    specialtyId = parsing_result["specialtyId"]
-    doctorId = parsing_result["doctorId"]
+        return None
+    db = SqliteDb(file=Config.db_file)
     user_id: int = message.from_user.id
 
-    doctor: pydantic_models.ApiDoctor | None = Gorzdrav.get_doctor(
-        lpuId=lpuId, specialtyId=specialtyId, doctorId=doctorId
+    api_doctor: api_models.Doctor | None = Gorzdrav.get_doctor(
+        districtId=parsing_result.districtId,
+        lpuId=parsing_result.lpuId,
+        specialtyId=parsing_result.specialtyId,
+        doctorId=parsing_result.doctorId,
     )
-    bot.reply_to(message=message, text=f"{doctor}")
+    if api_doctor is None:
+        bot.reply_to(
+            message,
+            "Не удалось получить данные врача от горздрава.\n"
+            + "Попробуйте позднее или задайте попробуйте другую ссылку.",
+        )
+        return None
+
     # добавляем врача в бд
-    doctor_id: str = SyncOrm.add_doctor(
-        lpuId=lpuId,
-        specialtyId=specialtyId,
-        doctorId=doctorId,
+    # doctor_id: str = SyncOrm.add_doctor(
+    #     lpuId=parsing_result.lpuId,
+    #     specialtyId=parsing_result.specialtyId,
+    #     doctorId=parsing_result.doctorId,
+    # )
+
+    db_doctor = pydantic_models.DbDoctorToCreate(
+        districtId=parsing_result.districtId,
+        lpuId=parsing_result.lpuId,
+        specialtyId=parsing_result.specialtyId,
+        doctorId=parsing_result.doctorId,
     )
+    doctor_id: str = db.add_doctor(doctor=db_doctor)
     # добавляем врача к пользователю
-    SyncOrm.update_user(user_id=user_id, doctor_id=doctor_id)
+    # SyncOrm.update_user(user_id=user_id, doctor_id=doctor_id)
+    db.add_user_doctor(user_id=user_id, doctor_id=doctor_id)
+    user = db.get_user(user_id=user_id)
+    ping_text = f"Проверка {'включена' if user.ping_status else 'отключена'}."
+    bot.reply_to(
+        message=message,
+        text=f"К вам добавлен врач {api_doctor.name}\n"
+        + f"Свободных талонов {api_doctor.freeTicketCount}. "
+        + f"Свободных мест {api_doctor.freeParticipantCount}\n\n"
+        + f"{ping_text}\n",
+    )
 
 
 if __name__ == "__main__":
@@ -235,22 +281,10 @@ if __name__ == "__main__":
 
     # запускаем процесс с отправкой уведомлений
     checker = multiprocessing.Process(
-        target=checker.scheduler,
+        target=checker.old_checker,
         name="gorzdrav_checker",
         kwargs={},
         daemon=True,
     )
     checker.start()
-    # checker = multiprocessing.Process(
-    #     target=checker,
-    #     name="gorzdrav_checker",
-    #     kwargs={
-    #         "bot_token": Config.bot_token,
-    #         "timeout_secs": Config.checker_timeout_secs,
-    #         "db_file": Config.db_file,
-    #     },
-    #     daemon=True,
-    # )
-    # checker.start()
-
     bot.polling(none_stop=True)
