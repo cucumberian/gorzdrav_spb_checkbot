@@ -1,0 +1,18 @@
+version: "3.6"
+
+services:
+  bot:
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+    command: sh -c "python app.py"
+    env_file: .env
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - DB_FILE=${DB_FILE}
+    volumes:
+      - gorzdrav_bot:/home/app/src/
+    restart: unless-stopped
+
+volumes:
+  gorzdrav_bot:

@@ -2,7 +2,6 @@ import requests
 import time
 
 from gorzdrav.api import Gorzdrav
-import gorzdrav.models as api_models
 from models import pydantic_models
 from config import Config
 from queries.orm import SyncOrm
@@ -101,7 +100,7 @@ def old_checker(timeout_secs: int = 120):
             if doctor is None:
                 continue
 
-            if doctor.is_free:
+            if doctor.have_free_places:
                 link = Gorzdrav.generate_link(
                     districtId=doctor.districtId,
                     lpuId=doctor.lpuId,
@@ -110,8 +109,9 @@ def old_checker(timeout_secs: int = 120):
                 )
                 message = (
                     f"Врач {doctor.name} доступен для записи.\n"
-                    + f"Талонов для записи: {doctor.freeTicketCount}, "
-                    + f"мест: {doctor.freeParticipantCount}\n\n"
+                    + f"Мест для записи: {doctor.freeParticipantCount}.\n"
+                    + f"Талонов для записи: {doctor.freeTicketCount}.\n"
+                    + "\n"
                     + f"Запишитесь на приём по ссылке: {link}\n\n"
                     + "Отслеживание отключено."
                 )

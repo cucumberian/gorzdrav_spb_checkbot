@@ -87,7 +87,10 @@ def start_message(message):
     # SyncOrm.add_user(user_id=user_id)
     bot.reply_to(
         message,
-        "Ваш профиль создан.\n"
+        "Ваш профиль создан.\n\n"
+        + "Добавьте врача прислав ссылку со страницы его расписания"
+        + " через свободную запись к врачу: \n"
+        + "https://gorzdrav.spb.ru/service-free-schedule#\n\n"
         + "Используйте команду /delete для удаления профиля.",
     )
 
@@ -125,7 +128,7 @@ def ping_on(message):
     # SyncOrm.update_user(user_id=user_id, ping_status=True)
     db = SqliteDb(file=Config.db_file)
     db.set_user_ping_status(user_id=user_id, ping_status=True)
-    bot.reply_to(message, "Проверка включена")
+    bot.reply_to(message, "Отслеживание включено")
 
 
 @bot.message_handler(commands=["off"])
@@ -139,7 +142,7 @@ def ping_off(message):
     # SyncOrm.update_user(user_id=user_id, ping_status=False)
     db = SqliteDb(file=Config.db_file)
     db.set_user_ping_status(user_id=user_id, ping_status=False)
-    bot.reply_to(message, "Проверка выключена")
+    bot.reply_to(message, "Отслеживание выключено")
 
 
 @bot.message_handler(commands=["delete"])
@@ -190,7 +193,9 @@ def get_status(message):
             + "Попробуйте позднее или задайте снова врача.",
         )
         return None
-    ping_text = f"Проверка {'включена' if user.ping_status else 'отключена'}."
+    ping_text = (
+        f"Отслеживание {'включено' if user.ping_status else 'отключено'}."
+    )
     bot.reply_to(
         message=message,
         text=f"{gorzdrav_doctor}\n{ping_text}",
@@ -253,12 +258,15 @@ def get_url(message):
     # SyncOrm.update_user(user_id=user_id, doctor_id=doctor_id)
     db.add_user_doctor(user_id=user_id, doctor_id=doctor_id)
     user = db.get_user(user_id=user_id)
-    ping_text = f"Проверка {'включена' if user.ping_status else 'отключена'}."
+    ping_text = (
+        f"Отслеживание {'включено' if user.ping_status else 'отключено'}."
+    )
     bot.reply_to(
         message=message,
-        text=f"К вам добавлен врач {api_doctor.name}\n"
-        + f"Свободных талонов {api_doctor.freeTicketCount}. "
-        + f"Свободных мест {api_doctor.freeParticipantCount}\n\n"
+        text=f"Выбран врач {api_doctor.name}\n"
+        + f"Свободных мест {api_doctor.freeParticipantCount}.\n"
+        + f"Свободных талонов {api_doctor.freeTicketCount}.\n"
+        + "\n"
         + f"{ping_text}\n",
     )
 

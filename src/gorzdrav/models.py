@@ -71,7 +71,7 @@ class Doctor(ApiDoctor):
         return (
             f"Врач: {self.name}.\n"
             + f"Талонов: {self.freeTicketCount}, "
-            + f"мест: {self.freeParticipantCount}."
+            + f"мест для записи: {self.freeParticipantCount}."
         )
 
     def __repr__(self) -> str:
@@ -79,15 +79,21 @@ class Doctor(ApiDoctor):
 
     @property
     def have_free_tickets(self) -> bool:
+        """
+        Возвращает True, если у врача есть талончики на запись
+        """
         return self.freeTicketCount > 0
 
     @property
     def have_free_places(self) -> bool:
+        """
+        Возвращает True, если у врача есть свободные места для записи
+        """
         return self.freeParticipantCount > 0
 
     @property
     def is_free(self) -> bool:
-        return self.have_free_tickets or self.have_free_places
+        return self.have_free_tickets and self.have_free_places
 
 
 class LinkParsingResult(BaseModel):
