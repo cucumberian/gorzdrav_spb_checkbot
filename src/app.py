@@ -463,13 +463,25 @@ def set_doctor(call: CallbackQuery):
     if user is None:
         return
     ping_text = f"Отслеживание {'включено' if user.ping_status else 'отключено'}."
-    bot.send_message(
-        chat_id=call.message.chat.id,
-        text=f"Выбран врач {doctor.name}\n"
+
+    link = Gorzdrav.generate_link(
+        districtId=district_id,
+        lpuId=lpu.id,
+        specialtyId=specialty_id,
+        scheduleId=doctor_id,
+    )
+    text = (
+        f"Выбран врач {doctor.name}\n"
         + f"Свободных мест {doctor.freeParticipantCount}.\n"
         + f"Свободных талонов {doctor.freeTicketCount}.\n"
         + "\n"
-        + f"{ping_text}\n",
+        + f"{ping_text}\n\n"
+    )
+    text += f"Ссылка на запись: {link}"
+
+    bot.send_message(
+        chat_id=call.message.chat.id,
+        text=text,
     )
 
 
@@ -561,10 +573,20 @@ def get_status(message: Message):
             + "Попробуйте позднее или задайте снова врача командой /set_doctor.",
         )
         return None
+
+    link = Gorzdrav.generate_link(
+        districtId=user_doctor.districtId,
+        lpuId=gorzdrav_doctor.lpuId,
+        specialtyId=gorzdrav_doctor.specialtyId,
+        scheduleId=gorzdrav_doctor.doctorId,
+    )
+
     ping_text = f"Отслеживание {'включено' if user.ping_status else 'отключено'}."
+    text = f"{gorzdrav_doctor}\n{ping_text}"
+    text += f"\n\nСсылка на запись: {link}"
     bot.reply_to(  # type: ignore
         message=message,
-        text=f"{gorzdrav_doctor}\n{ping_text}",
+        text=text,
     )
 
 
