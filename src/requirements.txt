@@ -5,3 +5,4 @@ dnspython
 pydantic
 sqlalchemy
 pytest
+python-dotenv
