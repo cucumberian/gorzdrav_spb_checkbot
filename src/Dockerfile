@@ -1,4 +1,4 @@
-FROM python:3.11.9-alpine3.19
+FROM python:3.12-alpine3.21
 
 ENV HOMEDIR=/home/app/
 ENV APPDIR=${HOMEDIR}/src/
