@@ -226,15 +226,6 @@ def back_to_state(
     SM.set_state(user_id=user_id, state_name=state_name, payload=payload)
 
 
-@bot.message_handler(commands=["state"])  # type: ignore
-def get_bot_state(message: Message):
-    if message.from_user is None:
-        return
-    user_id = message.from_user.id
-    current_state = SM.get_state(user_id)
-    bot.reply_to(message=message, text=f"Текущее состояние {current_state}")  # type: ignore
-
-
 @bot.message_handler(commands=["set_doctor"])  # type: ignore
 @is_user_profile
 def start_set_doctor(message: Message):
