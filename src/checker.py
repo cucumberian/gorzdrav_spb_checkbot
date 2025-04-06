@@ -2,7 +2,6 @@ import requests
 import time
 
 from gorzdrav.api import Gorzdrav
-from models import pydantic_models
 from queries.orm import SyncOrm
 import db.models as db_models
 
@@ -28,13 +27,11 @@ def send_message(message: str, api_token: str, chat_id: int | str) -> None:
         print(f"Failed to send message to {chat_id}", response.text)
 
 
-def collect_free_doctors() -> dict[str : {}]:
+def collect_free_doctors() -> dict[str, dict]:
     pinged_doctors: list[db_models.DoctorOrm] = SyncOrm.get_pinged_doctors()
     free_doctors_dict = {}
     for doc in pinged_doctors:
-        appointments: list[
-            pydantic_models.ApiAppointment
-        ] = Gorzdrav.get_appointments(
+        appointments = Gorzdrav.get_appointments(
             lpu_id=doc.lpuId,
             doctor_id=doc.doctorId,
         )
@@ -62,9 +59,7 @@ def checker():
         appointments_count = len(free_doc_data["appointments"])
         for user in free_doc_users:
             text = f"У вашего врача {appointments_count} свободных талонов"
-            send_message(
-                message=text, api_token=Config.bot_token, chat_id=user.id
-            )
+            send_message(message=text, api_token=Config.bot_token, chat_id=user.id)
             # отключаем пинг для пользователя после отправки сообщений
             SyncOrm.update_user(user_id=user.id, ping_status=False)
             time.sleep(0.1)
