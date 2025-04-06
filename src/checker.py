@@ -3,7 +3,6 @@ import time
 
 from gorzdrav.api import Gorzdrav
 from models import pydantic_models
-from config import Config
 from queries.orm import SyncOrm
 import db.models as db_models
 
@@ -30,7 +29,7 @@ def send_message(message: str, api_token: str, chat_id: int | str) -> None:
 
 
 def collect_free_doctors() -> dict[str : {}]:
-    pinged_doctors: list[db_models.Doctor] = SyncOrm.get_pinged_doctors()
+    pinged_doctors: list[db_models.DoctorOrm] = SyncOrm.get_pinged_doctors()
     free_doctors_dict = {}
     for doc in pinged_doctors:
         appointments: list[
