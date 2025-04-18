@@ -56,20 +56,31 @@ class KeySchema(BaseModel):
     callback_data: str
 
 
-def get_keyboard(keys: list[KeySchema]) -> InlineKeyboardMarkup:
-    def get_key_text(text: str, max_len: int = 100):
+def get_keyboard(keys: list[KeySchema], max_buttons: int = 50) -> InlineKeyboardMarkup:
+    def get_key_text(text: str, max_len: int = 50):
         if len(text) > max_len:
             return text[:max_len] + "..."
         return text
 
+    def is_valid_callback_data(callback_data: str, max_len: int = 64):
+        return len(callback_data.encode('utf-8')) <= max_len
+
     kb = InlineKeyboardMarkup()
-    for key in keys:
+    total_size = 0
+    for key in keys[:max_buttons]:
+        if not is_valid_callback_data(key.callback_data):
+            continue
+
         btn = InlineKeyboardButton(
             text=get_key_text(key.text),
             callback_data=key.callback_data,
         )
         kb.add(btn)  # type: ignore
-    # kb.add(InlineKeyboardButton(text="Закрыть", callback_data="close"))
+
+        total_size += len(btn.text.encode('utf-8')) + len(btn.callback_data.encode('utf-8')) + 20
+        if total_size >= 10 * 1024:
+            break
+
     return kb
 
 
