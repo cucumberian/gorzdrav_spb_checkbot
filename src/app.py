@@ -82,7 +82,7 @@ def is_user_profile(func: Callable):
         if message.from_user is None:
             return None
         user_id = message.from_user.id
-        # user = 4e.get_user(user_id=user_id)
+        # user = SyncOrm.get_user(user_id=user_id)
 
         user = DB.get_user(user_id=user_id)
         if not user:
