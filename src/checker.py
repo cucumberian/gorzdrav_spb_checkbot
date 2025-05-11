@@ -5,8 +5,9 @@ from gorzdrav.api import Gorzdrav
 from queries.orm import SyncOrm
 import db.models as db_models
 
-from modules.db import SqliteDb
 from config import Config
+from depends import sqlite_db as DB
+
 
 SyncOrm.create_tables()
 
@@ -59,14 +60,14 @@ def checker():
         appointments_count = len(free_doc_data["appointments"])
         for user in free_doc_users:
             text = f"У вашего врача {appointments_count} свободных талонов"
-            send_message(message=text, api_token=Config.bot_token, chat_id=user.id)
+            send_message(message=text, api_token=Config.BOT_TOKEN, chat_id=user.id)
             # отключаем пинг для пользователя после отправки сообщений
             SyncOrm.update_user(user_id=user.id, ping_status=False)
             time.sleep(0.1)
 
 
 def scheduler():
-    timeout_secs = Config.checker_timeout_secs or 300
+    timeout_secs = Config.CHECKER_TIMEOUT_SECS or 300
 
     while True:
         checker()
@@ -79,10 +80,9 @@ if __name__ == "__main__":
 
 def old_checker(timeout_secs: int = 120):
     time.sleep(2)
-    db = SqliteDb(file=Config.db_file)
 
     while True:
-        active_doctors = db.get_active_doctors()
+        active_doctors = DB.get_active_doctors()
         for active_doctor in active_doctors:
             time.sleep(0.2)
             doctor = Gorzdrav.get_doctor(
@@ -110,14 +110,14 @@ def old_checker(timeout_secs: int = 120):
                     + "Отслеживание отключено."
                 )
 
-                users = db.get_users_by_doctor(doctor_id=active_doctor.id)
+                users = DB.get_users_by_doctor(doctor_id=active_doctor.id)
                 for user in users:
                     time.sleep(0.2)
                     send_message(
                         message=message,
-                        api_token=Config.bot_token,
+                        api_token=Config.BOT_TOKEN,
                         chat_id=user.id,
                     )
-                    db.set_user_ping_status(user_id=user.id, ping_status=False)
+                    DB.set_user_ping_status(user_id=user.id, ping_status=False)
 
         time.sleep(timeout_secs)

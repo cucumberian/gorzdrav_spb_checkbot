@@ -5,22 +5,21 @@ import multiprocessing
 from pydantic import BaseModel
 
 
-import telebot  # type: ignore
-from telebot.types import Message  # type: ignore
-from telebot.types import InaccessibleMessage  # type: ignore
-from telebot.types import CallbackQuery  # type: ignore
-from telebot.storage import StateMemoryStorage  # type: ignore
-# from telebot.states.sync.context import StateContext
+import telebot
+from telebot.types import Message
+from telebot.types import InaccessibleMessage
+from telebot.types import CallbackQuery
+from telebot.storage import StateMemoryStorage
 
-from telebot.types import InlineKeyboardMarkup  # type: ignore
-from telebot.types import InlineKeyboardButton  # type: ignore
+from telebot.types import InlineKeyboardMarkup
+from telebot.types import InlineKeyboardButton
 
-from config import Config
 from gorzdrav.api import Gorzdrav
 import gorzdrav.models as api_models
 from models import pydantic_models
-from modules.db import SqliteDb
 import checker
+from depends import sqlite_db as DB
+from config import Config
 
 
 from states.states import StateManager as SM
@@ -31,24 +30,10 @@ from states.states import STATES_NAMES
 state_storage = StateMemoryStorage()  # хранилище для состояний в памяти
 
 bot = telebot.TeleBot(
-    token=Config.bot_token,
+    token=Config.BOT_TOKEN,
     state_storage=state_storage,
     use_class_middlewares=True,
 )
-
-
-# gorzdrav = modules.net.GorzdravSpbAPI()
-
-#####################
-#
-# 2025-04-06
-# feat: простой стейт менеджер чтобы выбирать врачей через бота, а не через сайт
-#
-# 2024-04-08
-# fixed: regex, чтобы соответствовать типам данных моделей api
-#
-#
-######################
 
 
 class KeySchema(BaseModel):
@@ -63,7 +48,7 @@ def get_keyboard(keys: list[KeySchema], max_buttons: int = 50) -> InlineKeyboard
         return text
 
     def is_valid_callback_data(callback_data: str, max_len: int = 64):
-        return len(callback_data.encode('utf-8')) <= max_len
+        return len(callback_data.encode("utf-8")) <= max_len
 
     kb = InlineKeyboardMarkup()
     total_size = 0
@@ -77,7 +62,9 @@ def get_keyboard(keys: list[KeySchema], max_buttons: int = 50) -> InlineKeyboard
         )
         kb.add(btn)  # type: ignore
 
-        total_size += len(btn.text.encode('utf-8')) + len(btn.callback_data.encode('utf-8')) + 20
+        total_size += (
+            len(btn.text.encode("utf-8")) + len(btn.callback_data.encode("utf-8")) + 20
+        )
         if total_size >= 10 * 1024:
             break
 
@@ -96,8 +83,8 @@ def is_user_profile(func: Callable):
             return None
         user_id = message.from_user.id
         # user = SyncOrm.get_user(user_id=user_id)
-        db = SqliteDb(file=Config.db_file)
-        user = db.get_user(user_id=user_id)
+
+        user = DB.get_user(user_id=user_id)
         if not user:
             bot.reply_to(  # type: ignore
                 message,
@@ -129,8 +116,8 @@ def is_user_have_doctor(func: Callable):
             message = message_or_callback.message
         user_id = message.from_user.id
         # doctor = SyncOrm.get_user_doctor(user_id=user_id)
-        db = SqliteDb(file=Config.db_file)
-        doctor = db.get_user_doctor(user_id=user_id)
+
+        doctor = DB.get_user_doctor(user_id=user_id)
         if not doctor:
             bot.reply_to(
                 message=message,
@@ -154,6 +141,8 @@ def is_state(
     def decorator(func: Callable):
         @wraps(func)
         def wrapper(message_or_callback: Message | CallbackQuery, *args, **kwargs):
+            if not message_or_callback.from_user:
+                return None
             user_id = message_or_callback.from_user.id
             current_state = SM.get_state(user_id)
             if (
@@ -183,12 +172,11 @@ def start_message(message: Message):
     if message.from_user is None:
         return
     user_id = message.from_user.id
-    db = SqliteDb(file=Config.db_file)
-    db.delete_user(user_id=user_id)
+    DB.delete_user(user_id=user_id)
     SM.set_state(user_id=user_id, state_name=STATES_NAMES.NO_PROFILE)
 
     new_user = pydantic_models.DbUser(id=user_id)
-    db.add_user(user=new_user)
+    DB.add_user(user=new_user)
     SM.set_state(user_id=user_id, state_name=STATES_NAMES.HAVE_PROFILE)
 
     # устанавливаем состояние бота
@@ -457,20 +445,18 @@ def set_doctor(call: CallbackQuery):
         )
         return
 
-    db = SqliteDb(file=Config.db_file)
-
     db_doctor = pydantic_models.DbDoctorToCreate(
         districtId=district_id,
         lpuId=lpu.id,
         specialtyId=specialty_id,
         doctorId=doctor_id,
     )
-    doctor_id = db.add_doctor(doctor=db_doctor)
-    db.add_user_doctor(user_id=user_id, doctor_id=doctor_id)
+    doctor_id = DB.add_doctor(doctor=db_doctor)
+    DB.add_user_doctor(user_id=user_id, doctor_id=doctor_id)
 
     SM.set_state(user_id=user_id, state_name=STATES_NAMES.HAVE_PROFILE)
 
-    user = db.get_user(user_id=user_id)
+    user = DB.get_user(user_id=user_id)
     if user is None:
         return
     ping_text = f"Отслеживание {'включено' if user.ping_status else 'отключено'}."
@@ -515,8 +501,7 @@ def ping_on(message: Message):
         return
     user_id = message.from_user.id
     # SyncOrm.update_user(user_id=user_id, ping_status=True)
-    db = SqliteDb(file=Config.db_file)
-    db.set_user_ping_status(user_id=user_id, ping_status=True)
+    DB.set_user_ping_status(user_id=user_id, ping_status=True)
     bot.reply_to(message, "Отслеживание включено")  # type: ignore
 
 
@@ -531,8 +516,7 @@ def ping_off(message: Message):
         return
     user_id = message.from_user.id
     # SyncOrm.update_user(user_id=user_id, ping_status=False)
-    db = SqliteDb(file=Config.db_file)
-    db.set_user_ping_status(user_id=user_id, ping_status=False)
+    DB.set_user_ping_status(user_id=user_id, ping_status=False)
     bot.reply_to(message, "Отслеживание выключено")  # type: ignore
 
 
@@ -546,8 +530,7 @@ def delete_user(message: Message):
         return
     user_id = message.from_user.id
 
-    db = SqliteDb(file=Config.db_file)
-    db.delete_user(user_id=user_id)
+    DB.delete_user(user_id=user_id)
     SM.set_state(user_id, STATES_NAMES.NO_PROFILE)
     bot.reply_to(  # type: ignore
         message,
@@ -565,11 +548,10 @@ def get_status(message: Message):
     if message.from_user is None:
         return
     user_id = message.from_user.id
-    db = SqliteDb(file=Config.db_file)
-    user = db.get_user(user_id=user_id)
+    user = DB.get_user(user_id=user_id)
     if user is None:
         return
-    user_doctor = db.get_user_doctor(user_id=user_id)
+    user_doctor = DB.get_user_doctor(user_id=user_id)
     if user_doctor is None:
         return
     gorzdrav_doctor: api_models.ApiDoctor | None = Gorzdrav.get_doctor(

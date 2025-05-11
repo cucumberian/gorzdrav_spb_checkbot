@@ -24,6 +24,7 @@ class SyncOrm:
             session.add(user)
             session.commit()
 
+    @staticmethod
     def update_user(
         user_id: int,
         ping_status: bool | None = None,

@@ -4,28 +4,28 @@ from config import Config
 
 
 def test_api_url():
-    assert Gorzdrav._Gorzdrav__api_url == Config.api_url
+    assert Gorzdrav._Gorzdrav__api_url == Config.API_URL
 
 
 def test_districts_url():
     assert (
         Gorzdrav._Gorzdrav__get_districts_endpoint()
-        == f"{Config.api_url}/shared/districts"
+        == f"{Config.API_URL}/shared/districts"
     )
 
 
 def test_lpus_endpoint():
     res = Gorzdrav._Gorzdrav__get_lpus_endpoint()
-    assert res == f"{Config.api_url}/shared/lpus"
+    assert res == f"{Config.API_URL}/shared/lpus"
     districtId = "aaa"
     res2 = Gorzdrav._Gorzdrav__get_lpus_endpoint(districtId=districtId)
-    assert res2 == f"{Config.api_url}/shared/district/{districtId}/lpus"
+    assert res2 == f"{Config.API_URL}/shared/district/{districtId}/lpus"
 
 
 @pytest.mark.parametrize("lpuId", [(".da",), ("1",), ("aa",)])
 def test_get_specialties_url(lpuId: str):
     res = Gorzdrav._Gorzdrav__get_specialties_endpoint(lpuId)
-    assert res == f"{Config.api_url}/schedule/lpu/{lpuId}/specialties"
+    assert res == f"{Config.API_URL}/schedule/lpu/{lpuId}/specialties"
 
 
 @pytest.mark.parametrize(
@@ -35,7 +35,7 @@ def test_get_specialties_url(lpuId: str):
 def test_get_doctors_endpoint(lpuId, specialtyId):
     res = Gorzdrav._Gorzdrav__get_doctors_endpoint(lpuId, specialtyId)
     assert res == (
-        f"{Config.api_url}/schedule"
+        f"{Config.API_URL}/schedule"
         + f"/lpu/{lpuId}"
         + f"/speciality/{specialtyId}/doctors"
     )
@@ -48,7 +48,7 @@ def test_get_timetable_endpoint(lpuId: int, doctorId: str):
     res = Gorzdrav._Gorzdrav__get_timetable_endpoint(lpuId, doctorId)
     assert (
         res
-        == f"{Config.api_url}/schedule/lpu/{lpuId}/doctor/{doctorId}/timetable"
+        == f"{Config.API_URL}/schedule/lpu/{lpuId}/doctor/{doctorId}/timetable"
     )
 
 
@@ -65,5 +65,5 @@ def test_get_appointments_endpoint(lpuId: int, doctorId: str):
     res = Gorzdrav._Gorzdrav__get_appointments_endpoint(lpuId, doctorId)
     assert (
         res
-        == f"{Config.api_url}/schedule/lpu/{lpuId}/doctor/{doctorId}/appointments"
+        == f"{Config.API_URL}/schedule/lpu/{lpuId}/doctor/{doctorId}/appointments"
     )
