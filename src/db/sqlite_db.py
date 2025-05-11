@@ -1,12 +1,10 @@
 import datetime
-import sqlite3
 import hashlib
+import sqlite3
 
-from gorzdrav.models import Doctor
 from models.pydantic_models import DbDoctor
 from models.pydantic_models import DbDoctorToCreate
 from models.pydantic_models import DbUser
-from config import Config
 
 
 class SqliteDb:
@@ -25,20 +23,18 @@ class SqliteDb:
         Returns:
             str: хеш доктора для хранения в БД
         """
-        hashed_string = (
-            f"{doctor.doctorId}_{doctor.specialtyId}_{doctor.lpuId}"
-        )
+        hashed_string = f"{doctor.doctorId}_{doctor.specialtyId}_{doctor.lpuId}"
         return hashlib.shake_128(hashed_string.encode()).hexdigest(10)
 
-    def __init__(self, file: str = Config.db_file) -> None:
-        self.file = file
+    def __init__(self, db_path: str):
+        self.db_path = db_path
         self.connection = sqlite3.connect(
-            database=self.file, check_same_thread=False, timeout=5
+            database=self.db_path, check_same_thread=False, timeout=5
         )
         self.cursor = self.connection.cursor()
         self.create_db()
 
-    def create_db(self) -> None:
+    def create_db(self):
         """
         Создаются таблицы докторов для поиска
         и пользователей телеграм бота
@@ -46,7 +42,7 @@ class SqliteDb:
         self.create_table_doctors()
         self.create_table_users()
 
-    def create_table_users(self) -> None:
+    def create_table_users(self):
         """
         Создание таблицы users:
         id:int - идентификатор пользователя в telegram

@@ -6,3 +6,5 @@ __pycache__/
 *.json
 *.ipynb
 *.db
+*.sqlite
+data/

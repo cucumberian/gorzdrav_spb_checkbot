@@ -2,7 +2,7 @@ import pytest
 import os
 import random
 import datetime
-from modules.db import SqliteDb
+from db.sqlite_db import SqliteDb
 from models import pydantic_models
 
 # generate random name for db

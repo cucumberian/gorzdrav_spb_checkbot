@@ -7,10 +7,8 @@ services:
     env_file: .env
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
-      - DB_FILE=${DB_FILE}
+      - DB_FILE=/home/app/data/db.sqlite
     volumes:
-      - gorzdrav_bot:/home/app/src/
+      - ./data/:/home/app/data
     restart: unless-stopped
 
-volumes:
-  gorzdrav_bot:

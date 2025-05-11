@@ -5,11 +5,11 @@ load_dotenv()
 
 
 class Config:
-    bot_token = os.environ["BOT_TOKEN"]
-    db_file = os.environ["DB_FILE"]
-    checker_timeout_secs = int(os.environ.get("CHECKER_TIMEOUT_SECS", 120))
-    gorzdrav_api = "https://gorzdrav.spb.ru/_api/api"
-    gorzdrav_api_v = "v2"
-    api_url = f"{gorzdrav_api}/{gorzdrav_api_v}"
-    headers = {"User-Agent": "gorzdrav-spb-bot"}
-    dsn_string = f"sqlite:///{db_file}"
+    BOT_TOKEN = os.environ["BOT_TOKEN"]
+    DB_FILE = os.environ["DB_FILE"]
+    CHECKER_TIMEOUT_SECS = int(os.environ.get("CHECKER_TIMEOUT_SECS", 120))
+    GORZDRAV_API = "https://gorzdrav.spb.ru/_api/api"
+    GORZDRAV_API_V = "v2"
+    API_URL = f"{GORZDRAV_API}/{GORZDRAV_API_V}"
+    HEADERS = {"User-Agent": "gorzdrav-spb-bot"}
+    DSN_STRING = f"sqlite:///{DB_FILE}"

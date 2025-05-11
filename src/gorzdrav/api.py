@@ -19,10 +19,10 @@ class Gorzdrav:
     Класс для обращения к API Gorzdrav.spb.ru
     """
 
-    __api_url = Config.api_url
+    __api_url = Config.API_URL
     __shared_url = f"{__api_url}/shared"
     __schedule_url = f"{__api_url}/schedule"
-    __headers = Config.headers
+    __headers = Config.HEADERS
 
     @staticmethod
     def generate_link(
@@ -59,7 +59,7 @@ class Gorzdrav:
         return f"{cls.__shared_url}/district/{districtId}/lpus"
 
     @classmethod
-    def __get_lpu_endpoint(cls, lpuId: int) -> ApiLPU:
+    def __get_lpu_endpoint(cls, lpuId: int) -> str:
         """
         Маршрут для получения информации о медучреждении
         Args:
@@ -119,9 +119,7 @@ class Gorzdrav:
         Returns:
             str: эндпоинт для получения доступных назначений к врачу
         """
-        return (
-            f"{cls.__schedule_url}/lpu/{lpuId}/doctor/{doctorId}/appointments"
-        )
+        return f"{cls.__schedule_url}/lpu/{lpuId}/doctor/{doctorId}/appointments"
 
     @classmethod
     def __get_result(cls, url: str, sleep_time: float = 1.0) -> Any:
@@ -280,9 +278,7 @@ class Gorzdrav:
         lpu_id: int,
         doctor_id: str,
     ) -> list[ApiAppointment]:
-        url = cls.__get_appointments_endpoint(
-            lpu_id=lpu_id, doctor_id=doctor_id
-        )
+        url = cls.__get_appointments_endpoint(lpu_id=lpu_id, doctor_id=doctor_id)
         try:
             result = cls.__get_result(url)
         except exceptions.NoTicketsException:
