@@ -26,8 +26,11 @@ from states.states import StateManager as SM
 from states.states import MiState
 from states.states import STATES_NAMES
 
+from callback_service import ButtonsService
 
 state_storage = StateMemoryStorage()  # хранилище для состояний в памяти
+
+
 
 bot = telebot.TeleBot(
     token=Config.BOT_TOKEN,
