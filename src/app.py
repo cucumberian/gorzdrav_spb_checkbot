@@ -1,6 +1,7 @@
 from functools import wraps
 from typing import Any, Callable
 import multiprocessing
+import logging
 
 from pydantic import BaseModel
 
@@ -26,11 +27,14 @@ from states.states import StateManager as SM
 from states.states import MiState
 from states.states import STATES_NAMES
 
-from callback_service import ButtonsService
+from callback_service import ButtonSchema, KeyboardService
+
+
+logger = logging.getLogger(__name__)
+
 
 state_storage = StateMemoryStorage()  # хранилище для состояний в памяти
-
-
+keyboard_service = KeyboardService(page_size=10)
 
 bot = telebot.TeleBot(
     token=Config.BOT_TOKEN,
@@ -228,31 +232,96 @@ def back_to_state(
     SM.set_state(user_id=user_id, state_name=state_name, payload=payload)
 
 
-@bot.message_handler(commands=["set_doctor"])  # type: ignore
+@bot.message_handler(commands=["set_doctor"])
 @is_user_profile
-def start_set_doctor(message: Message):
+def test_district_buttons(message: Message):
     if message.from_user is None:
         return
     user_id = message.from_user.id
+    message_id = message.message_id
+    chat_id = message.chat.id
+
     districts = Gorzdrav.get_districts()
 
-    keys: list[KeySchema] = []
-    for district in districts:
-        keys.append(
-            KeySchema(
-                text=f"{district.name}",
-                callback_data=f"district/{district.id}",
-            )
-        )
-    keys.append(KeySchema(text="Назад", callback_data="district/back"))
-    bot.reply_to(  # type: ignore
-        message,
-        "Выберите район:",
-        reply_markup=get_keyboard(keys),
+    message_hash = keyboard_service.get_short_message_hash(
+        message_id=message.message_id,
+        chat_id=message.chat.id,
+        user_id=user_id,
+    )
+
+    buttons = keyboard_service.get_districts_buttons(districts=districts)
+
+    keyboard_service.save_buttons(
+        message_id=message_id,
+        chat_id=chat_id,
+        user_id=user_id,
+        buttons=buttons,
+    )
+
+    kb = keyboard_service.get_keyboard_markup(
+        message_hash=message_hash,
+        page_number=0,
+    )
+    print(*[b[-1] for b in kb.keyboard], sep="\n")
+    print()
+    bot.send_message(
+        chat_id=message.chat.id,
+        text="Выберите район",
+        reply_markup=kb,
     )
     SM.set_state(
         user_id=user_id,
         state_name=STATES_NAMES.SELECT_DISTRICT,
+    )
+
+
+@bot.callback_query_handler(func=lambda call: call.message and "/page/" in call.data)
+def change_page(callback: CallbackQuery):
+    """
+    Функция для листания кнопок
+    """
+    print("page callback.data ", callback.data)
+    if callback.data is None:
+        return
+
+    parts = callback.data.split("/")
+    if len(parts) != 3:
+        logger.error(f"{callback.data} have not 3 parts")
+        return
+
+    message_hash, _, page_number_str = parts
+    page_number = int(page_number_str)
+
+    new_kb = keyboard_service.get_keyboard_markup(
+        message_hash=message_hash,
+        page_number=page_number,
+    )
+    if new_kb is None:
+        text = "Пожалуйста обновите запрос."
+        bot.edit_message_text(
+            text=text,
+            chat_id=callback.message.chat.id,
+            message_id=callback.message.message_id,
+        )
+        return
+
+    current_state_name: STATES_NAMES = SM.get_state(user_id=callback.from_user.id).name
+
+    if current_state_name == STATES_NAMES.SELECT_LPU:
+        back_button = InlineKeyboardButton(text="Назад", callback_data="lpu/back")
+        new_kb.add(back_button)
+    elif current_state_name == STATES_NAMES.SELECT_SPECIALTY:
+        back_button = InlineKeyboardButton(text="Назад", callback_data="specialty/back")
+        new_kb.add(back_button)
+    elif current_state_name == STATES_NAMES.SELECT_DOCTOR:
+        back_button = InlineKeyboardButton(text="Назад", callback_data="doctor/back")
+        new_kb.add(back_button)
+
+    bot.edit_message_text(
+        chat_id=callback.message.chat.id,
+        message_id=callback.message.message_id,
+        text=callback.message.text or "",
+        reply_markup=new_kb,
     )
 
 
@@ -287,20 +356,38 @@ def set_district(call: CallbackQuery):
 
     lpus = Gorzdrav.get_lpus(districtId=district_id)
 
-    keys: list[KeySchema] = []
-    for lpu in lpus:
-        keys.append(
-            KeySchema(
-                text=f"{lpu.lpuFullName} - {lpu.address}",
-                callback_data=f"lpu/{lpu.id}",
-            )
+    buttons = keyboard_service.get_lpus_buttons(lpus)
+
+    keyboard_service.save_buttons(
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        user_id=call.from_user.id,
+        buttons=buttons,
+    )
+
+    message_hash = keyboard_service.get_short_message_hash(
+        message_id=call.message.message_id,
+        chat_id=call.message.chat.id,
+        user_id=call.from_user.id,
+    )
+    kb = keyboard_service.get_keyboard_markup(
+        message_hash=message_hash,
+        page_number=0,
+    )
+    if kb is None:
+        logger.error("Keyboard markup is None")
+        return
+    kb.add(
+        InlineKeyboardButton(
+            text="Назад",
+            callback_data="lpu/back",
         )
-    keys.append(KeySchema(text="Назад", callback_data="lpu/back"))
+    )
 
     bot.send_message(
         chat_id=call.message.chat.id,
         text="Выберите медучреждение:",
-        reply_markup=get_keyboard(keys),
+        reply_markup=kb,
     )
 
 
@@ -338,20 +425,38 @@ def set_lpu(call: CallbackQuery):
     )
 
     specialties = Gorzdrav.get_specialties(lpuId=int(lpu_id))
+    buttons: list[ButtonSchema] = keyboard_service.get_specialties_buttons(
+        specialties=specialties
+    )
+    keyboard_service.save_buttons(
+        user_id=call.from_user.id,
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        buttons=buttons,
+    )
 
-    keys: list[KeySchema] = []
-    for specialty in specialties:
-        keys.append(
-            KeySchema(
-                text=f"{specialty.name}",
-                callback_data=f"specialty/{specialty.id}",
-            )
+    message_hash = keyboard_service.get_short_message_hash(
+        user_id=call.from_user.id,
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+    )
+    kb = keyboard_service.get_keyboard_markup(
+        message_hash=message_hash,
+    )
+    if kb is None:
+        logger.error("Не удалось получить клавиатуру")
+        return
+    kb.add(
+        InlineKeyboardButton(
+            text="Назад",
+            callback_data="specialty/back",
         )
-    keys.append(KeySchema(text="Назад", callback_data="specialty/back"))
+    )
+
     bot.send_message(
         chat_id=call.message.chat.id,
         text=f"Выберите специальность в медучреждении {lpu.lpuFullName}:",
-        reply_markup=get_keyboard(keys),
+        reply_markup=kb,
     )
 
 
@@ -383,19 +488,33 @@ def set_specialty(call: CallbackQuery):
 
     lpu = state_payload["lpu"]
     doctors = Gorzdrav.get_doctors(lpuId=lpu.id, specialtyId=specialty_id)
-    keys: list[KeySchema] = []
-    for doc in doctors:
-        keys.append(
-            KeySchema(
-                text=f"[{doc.freeParticipantCount}:{doc.freeTicketCount}] {doc.name}",
-                callback_data=f"doctor/{doc.id}",
-            )
-        )
-    keys.append(KeySchema(text="Назад", callback_data="doctor/back"))
+
+    buttons = keyboard_service.get_doctor_buttons(doctors)
+
+    keyboard_service.save_buttons(
+        user_id=call.from_user.id,
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        buttons=buttons,
+    )
+
+    message_hash = keyboard_service.get_short_message_hash(
+        user_id=call.from_user.id,
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+    )
+    kb = keyboard_service.get_keyboard_markup(
+        message_hash=message_hash,
+    )
+    if kb is None:
+        logger.error(f"Keyboard not found for message hash {message_hash}")
+        return
+    kb.add(InlineKeyboardButton(text="Назад", callback_data="doctor/back"))
+    
     bot.send_message(
         chat_id=call.message.chat.id,
         text=f"Выберите врача в медучреждении {lpu.lpuFullName}:",
-        reply_markup=get_keyboard(keys),
+        reply_markup=kb,
     )
 
     state_payload["specialty_id"] = specialty_id
