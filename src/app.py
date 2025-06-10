@@ -17,6 +17,7 @@ from telebot.types import InlineKeyboardButton
 
 from gorzdrav.api import Gorzdrav
 import gorzdrav.models as api_models
+from gorzdrav.exceptions import GorzdravExceptionBase
 from models import pydantic_models
 import checker
 from depends import sqlite_db as DB
@@ -27,9 +28,13 @@ from states.states import StateManager as SM
 from states.states import MiState
 from states.states import STATES_NAMES
 
-from callback_service import ButtonSchema, KeyboardService
+from keyboard_service import ButtonSchema, KeyboardService
 
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 
@@ -76,6 +81,26 @@ def get_keyboard(keys: list[KeySchema], max_buttons: int = 50) -> InlineKeyboard
             break
 
     return kb
+
+
+def handle_gorzdrav_exceptions(func):
+    @wraps(func)
+    def wrapper(message_or_callback: Message | CallbackQuery, *args, **kwargs):
+        try:
+            return func(message_or_callback, *args, **kwargs)
+        except GorzdravExceptionBase as e:
+            if isinstance(message_or_callback, Message):
+                message = message_or_callback
+            else:
+                message = message_or_callback.message
+            logger.error(f"Ошибка в API Gorzdrav: {e.message}")
+            bot.send_message(
+                chat_id=message.chat.id,
+                text="Произошла ошибка при обращении к API Gorzdrav.\n"
+                + str(e.message),
+            )
+
+    return wrapper
 
 
 def is_user_profile(func: Callable):
@@ -262,8 +287,6 @@ def test_district_buttons(message: Message):
         message_hash=message_hash,
         page_number=0,
     )
-    print(*[b[-1] for b in kb.keyboard], sep="\n")
-    print()
     bot.send_message(
         chat_id=message.chat.id,
         text="Выберите район",
@@ -280,7 +303,6 @@ def change_page(callback: CallbackQuery):
     """
     Функция для листания кнопок
     """
-    print("page callback.data ", callback.data)
     if callback.data is None:
         return
 
@@ -327,6 +349,7 @@ def change_page(callback: CallbackQuery):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("district/"))  # type: ignore
 @is_state(allowed_states_names=[STATES_NAMES.SELECT_DISTRICT])
+@handle_gorzdrav_exceptions
 def set_district(call: CallbackQuery):
     if not call.data:
         return
@@ -393,6 +416,7 @@ def set_district(call: CallbackQuery):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("lpu/"))  # type: ignore
 @is_state(allowed_states_names=[STATES_NAMES.SELECT_LPU])
+@handle_gorzdrav_exceptions
 def set_lpu(call: CallbackQuery):
     if not call.data:
         return
@@ -462,6 +486,7 @@ def set_lpu(call: CallbackQuery):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("specialty/"))  # type: ignore
 @is_state(allowed_states_names=[STATES_NAMES.SELECT_SPECIALTY])
+@handle_gorzdrav_exceptions
 def set_specialty(call: CallbackQuery):
     if call.data is None:
         return
@@ -510,7 +535,7 @@ def set_specialty(call: CallbackQuery):
         logger.error(f"Keyboard not found for message hash {message_hash}")
         return
     kb.add(InlineKeyboardButton(text="Назад", callback_data="doctor/back"))
-    
+
     bot.send_message(
         chat_id=call.message.chat.id,
         text=f"Выберите врача в медучреждении {lpu.lpuFullName}:",
@@ -527,6 +552,7 @@ def set_specialty(call: CallbackQuery):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("doctor/"))  # type: ignore
 @is_state(allowed_states_names=[STATES_NAMES.SELECT_DOCTOR])
+@handle_gorzdrav_exceptions
 def set_doctor(call: CallbackQuery):
     if call.data is None:
         return
@@ -663,6 +689,7 @@ def delete_user(message: Message):
 @bot.message_handler(commands=["status"])  # type: ignore
 @is_user_profile
 @is_user_have_doctor
+@handle_gorzdrav_exceptions
 def get_status(message: Message):
     """
     Пишет пользователю информацию о его враче.
@@ -706,17 +733,19 @@ def get_status(message: Message):
 
 
 if __name__ == "__main__":
-    print("Bot start")
-    print("Bot username: " + str(bot.get_me().username))
-    print("Bot id: " + str(bot.get_me().id))
-    print("Bot first_name: " + bot.get_me().first_name)
-    print("Bot can_join_groups: " + str(bot.get_me().can_join_groups))
-    print(
+    logger.info("Bot start")
+    logger.info("Bot username: " + str(bot.get_me().username))
+    logger.info("Bot id: " + str(bot.get_me().id))
+    logger.info("Bot first_name: " + bot.get_me().first_name)
+    logger.info("Bot can_join_groups: " + str(bot.get_me().can_join_groups))
+    logger.info(
         "Bot can_read_all_group_messages: "
         + str(bot.get_me().can_read_all_group_messages)
     )
-    print("Bot supports_inline_queries: " + str(bot.get_me().supports_inline_queries))
-    print("Bot started")
+    logger.info(
+        "Bot supports_inline_queries: " + str(bot.get_me().supports_inline_queries)
+    )
+    logger.info("Bot started")
 
     # запускаем процесс с отправкой уведомлений
     checker = multiprocessing.Process(

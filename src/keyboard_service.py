@@ -26,6 +26,8 @@ class CallbackPayloadSchema(BaseModel):
 
 
 class KeyboardService:
+    buttons__text_max_len = 120
+
     def __init__(self, page_size: int = 10):
         self.page_size = page_size
         self.storage: dict[str, CallbackPayloadSchema] = dict()
@@ -133,7 +135,6 @@ class KeyboardService:
         )
 
         if total_pages <= 1:
-            print(f"total_pages <= 1: {total_pages} <=1 ")
             return kb
 
         # добавляем кнопки перехода
@@ -187,7 +188,6 @@ class KeyboardService:
             n_buttons=len(buttons),
             page_size=page_size,
         )
-        print(f"{total_pages = }")
         if total_pages <= 1:
             for button in buttons:
                 inline_button = InlineKeyboardButton(
@@ -197,11 +197,12 @@ class KeyboardService:
                 kb.add(inline_button)
         return kb
 
-    @staticmethod
-    def __get_button_text(text: str, max_len: int = 50):
+    @classmethod
+    def __get_button_text(cls, text: str):
         """Обрезает текст кнопки до максимальной длины."""
-        if len(text) > max_len:
-            return text[:max_len] + "..."
+
+        if len(text) > cls.buttons__text_max_len:
+            return text[: cls.buttons__text_max_len] + "..."
         return text
 
     @staticmethod
@@ -227,8 +228,12 @@ class KeyboardService:
     def get_shorten_lpu_name(lpu_name: str):
         """Возвращает сокращенное название ЛПУ."""
         to_remove = ["СПб", "ГБУЗ", "Городская", "Санкт-Петербург"]
+        to_replace = {"поликлиника": "п-ка"}
         for item in to_remove:
             lpu_name = lpu_name.replace(item, "")
+        for k, v in to_replace.items():
+            lpu_name = lpu_name.replace(k, v)
+
         return lpu_name.strip()
 
     @classmethod
