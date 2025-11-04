@@ -1,4 +1,5 @@
 from functools import wraps
+from gc import disable
 from typing import Any, Callable
 import multiprocessing
 import logging
@@ -54,6 +55,8 @@ class KeySchema(BaseModel):
 
 
 def get_keyboard(keys: list[KeySchema], max_buttons: int = 50) -> InlineKeyboardMarkup:
+    """Возвращает клавиатуру по списку клавиш"""
+
     def get_key_text(text: str, max_len: int = 50):
         if len(text) > max_len:
             return text[:max_len] + "..."
@@ -725,10 +728,12 @@ def get_status(message: Message):
 
     ping_text = f"Отслеживание {'включено' if user.ping_status else 'отключено'}."
     text = f"{gorzdrav_doctor}\n{ping_text}"
-    text += f"\n\nСсылка на запись: {link}"
-    bot.reply_to(  # type: ignore
+    text += f"\n\nСсылка на запись: [ссылка]({link})"
+    bot.reply_to(
         message=message,
         text=text,
+        parse_mode="markdown",
+        disable_web_page_preview=True,
     )
 
 

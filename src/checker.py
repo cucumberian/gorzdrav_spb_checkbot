@@ -1,3 +1,4 @@
+from enum import StrEnum
 import requests
 import time
 
@@ -12,8 +13,19 @@ from depends import sqlite_db as DB
 SyncOrm.create_tables()
 
 
+class TGParseMode(StrEnum):
+    HTML = "html"
+    MARKDOWN = "Markdown"
+    MARKDOWN_V2 = "MarkdownV2"
+
+
 # send message to telegram with requests.post
-def send_message(message: str, api_token: str, chat_id: int | str) -> None:
+def send_message(
+    message: str,
+    api_token: str,
+    chat_id: int | str,
+    parse_mode: TGParseMode | None = None,
+) -> None:
     """
     Отправка сообщений в телеграм пользователю через requests.post
     :param message: str - сообщение
@@ -22,8 +34,16 @@ def send_message(message: str, api_token: str, chat_id: int | str) -> None:
     :return: None
     """
     url = f"https://api.telegram.org/bot{api_token}/sendMessage"
-    data = {"chat_id": chat_id, "text": message}
-    response = requests.post(url, data=data)
+    data = {
+        "chat_id": chat_id,
+        "text": message,
+        "disable_web_page_preview": True,
+    }
+    response = requests.post(
+        url,
+        data=data,
+        params={"parse_mode": parse_mode},
+    )
     if not response.ok:
         print(f"Failed to send message to {chat_id}", response.text)
 
@@ -106,7 +126,7 @@ def old_checker(timeout_secs: int = 120):
                     + f"Мест для записи: {doctor.freeParticipantCount}.\n"
                     + f"Талонов для записи: {doctor.freeTicketCount}.\n"
                     + "\n"
-                    + f"Запишитесь на приём по ссылке: {link}\n\n"
+                    + f"Запишитесь на приём по [ссылке]({link})\n\n"
                     + "Отслеживание отключено."
                 )
 
@@ -117,6 +137,7 @@ def old_checker(timeout_secs: int = 120):
                         message=message,
                         api_token=Config.BOT_TOKEN,
                         chat_id=user.id,
+                        parse_mode=TGParseMode.MARKDOWN,
                     )
                     DB.set_user_ping_status(user_id=user.id, ping_status=False)
 
