@@ -56,6 +56,7 @@ class SqliteDb:
             ping_status INTEGER DEFAULT 0 NOT NULL,
             doctor_id VARCHAR(40),
             last_seen DATETIME,
+            limit_days INTEGER,
             FOREIGN KEY (doctor_id) REFERENCES doctors (id)
         );"""
         self.cursor.execute(q)
@@ -90,15 +91,22 @@ class SqliteDb:
         """
         q = """
         INSERT OR IGNORE INTO USERS
-        (id, ping_status, doctor_id, last_seen)
-        values (?, ?, ?, ?)
+        (id, ping_status, doctor_id, last_seen, limit_days)
+        values (?, ?, ?, ?, ?)
         """
         if user.last_seen is None:
             user.last_seen = datetime.datetime.now(datetime.UTC)
         if user.ping_status is None:
             user.ping_status = False
         self.cursor.execute(
-            q, (user.id, user.ping_status, user.doctor_id, user.last_seen)
+            q,
+            (
+                user.id,
+                user.ping_status,
+                user.doctor_id,
+                user.last_seen,
+                user.limit_days,
+            ),
         )
         self.connection.commit()
 
@@ -110,18 +118,20 @@ class SqliteDb:
             id,
             ping_status,
             doctor_id,
-            last_seen
+            last_seen,
+            limit_days
         FROM users WHERE id = ?"""
         result = self.cursor.execute(q, (user_id,)).fetchone()
         if result is None:
             return None
-        (id, ping_status, doctor_id, last_seen) = result
+        (id, ping_status, doctor_id, last_seen, limit_days) = result
         timestamp = datetime.datetime.fromisoformat(last_seen)
         return DbUser(
             id=id,
             ping_status=ping_status,
             doctor_id=doctor_id,
             last_seen=timestamp,
+            limit_days=limit_days,
         )
 
     def add_doctor(self, doctor: DbDoctorToCreate) -> str:
@@ -353,3 +363,15 @@ class SqliteDb:
             for d in results
         ]
         return users
+
+    def set_limit_days(self, user_id: int, limit_days: int | None):
+        """Устанавливает кол-во дней для поиска"""
+        q = """UPDATE users SET limit_days = ? WHERE id = ?;"""
+        self.cursor.execute(q, (limit_days, user_id))
+        self.connection.commit()
+
+    def reset_limit_days(self, user_id: int):
+        """Сбрасывает счётчик дней"""
+        q = """UPDATE users SET limit_days = NULL WHERE id = ?;"""
+        self.cursor.execute(q, (user_id,))
+        self.connection.commit()

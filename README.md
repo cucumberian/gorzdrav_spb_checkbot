@@ -105,3 +105,12 @@
 - [https://gorzdrav.spb.ru/_api/api/v2/schedule/lpu/30/speciality/981/doctors](https://gorzdrav.spb.ru/_api/api/v2/schedule/lpu/30/speciality/981/doctors) - информация по доступным врачам в больнице 30 по специальности 981
 - [https://gorzdrav.spb.ru/_api/api/v2/schedule/lpu/1138/doctor/36/timetable](https://gorzdrav.spb.ru/_api/api/v2/schedule/lpu/1138/doctor/36/timetable) - расписание врача 36 в больнице 1138
 - [https://gorzdrav.spb.ru/_api/api/v2/schedule/lpu/30/doctor/222618/appointments](https://gorzdrav.spb.ru/_api/api/v2/schedule/lpu/30/doctor/222618/appointments) - доступные назначения к врачу
+
+## Тесты
+
+Запуск тестов
+
+```sh
+cd src
+python -m pytest .
+```

@@ -18,18 +18,19 @@ def create_db(request):
 
 
 @pytest.mark.parametrize(
-    "user_id, ping_status, doctor_id, last_seen",
+    "user_id, ping_status, doctor_id, last_seen, limit_days",
     [
-        (1, None, None, datetime.datetime.now()),
-        (2, None, None, datetime.datetime.now(datetime.UTC)),
-        (0, None, None, datetime.datetime.strptime("2020-01-01", "%Y-%m-%d")),
-        (1, True, None, None),
-        (-1, None, None, datetime.datetime.now()),
-        (1, True, None, datetime.datetime.now()),
-        (1, False, None, datetime.datetime.now()),
-        (1, None, "123", datetime.datetime.now()),
-        (11231241123, True, "123", datetime.datetime.now()),
-        (1, False, "123", datetime.datetime.now(datetime.UTC)),
+        (1, None, None, datetime.datetime.now(), None),
+        (2, None, None, datetime.datetime.now(datetime.UTC), 1),
+        (0, None, None, datetime.datetime.strptime("2020-01-01", "%Y-%m-%d"), -1),
+        (1, True, None, None, None),
+        (-1, None, None, datetime.datetime.now(), -1),
+        (1, True, None, datetime.datetime.now(), 100_000_000),
+        (1, False, None, datetime.datetime.now(), 33),
+        (1, None, "123", datetime.datetime.now(), 0),
+        (11231241123, True, "123", datetime.datetime.now(), 3),
+        (1, False, "123", datetime.datetime.now(datetime.UTC), 7),
+        (1, True, "123", datetime.datetime.now(datetime.UTC), None),
     ],
 )
 def test_add_user(
@@ -37,6 +38,7 @@ def test_add_user(
     ping_status: bool | None,
     doctor_id: str | None,
     last_seen: datetime,
+    limit_days: int | None,
 ):
     db = SqliteDb(TEST_DB)
     new_user = pydantic_models.DbUser(
@@ -44,10 +46,12 @@ def test_add_user(
         ping_status=ping_status,
         doctor_id=doctor_id,
         last_seen=last_seen,
+        limit_days=limit_days,
     )
     db.add_user(new_user)
     db_user = db.get_user(user_id)
 
+    assert db_user is not None
     assert db_user == new_user
     if ping_status is None:
         assert db_user.ping_status is False
@@ -57,9 +61,7 @@ def test_add_user(
     assert db_user.doctor_id == doctor_id
     if last_seen is None:
         delta_time = datetime.timedelta(milliseconds=50)
-        assert (
-            db_user.last_seen - datetime.datetime.now(datetime.UTC)
-        ) < delta_time
+        assert (db_user.last_seen - datetime.datetime.now(datetime.UTC)) < delta_time
     else:
         assert db_user.last_seen == last_seen
 
@@ -73,9 +75,7 @@ def test_add_user(
         ("-1", 1, "специальность", "ид доктора"),
     ],
 )
-def test_add_doctor(
-    districtId: str, lpuId: int, specialtyId: str, doctorId: str
-):
+def test_add_doctor(districtId: str, lpuId: int, specialtyId: str, doctorId: str):
     db = SqliteDb(TEST_DB)
     new_doctor = pydantic_models.DbDoctorToCreate(
         districtId=districtId,
@@ -179,11 +179,7 @@ def test_delete_user():
     [
         (datetime.datetime.now(datetime.UTC)),
         (None),
-        (
-            datetime.datetime.strptime(
-                "2020-01-01 03:04:05", "%Y-%m-%d %H:%M:%S"
-            )
-        ),
+        (datetime.datetime.strptime("2020-01-01 03:04:05", "%Y-%m-%d %H:%M:%S")),
     ],
 )
 def test_update_user_time(last_seen):
@@ -215,9 +211,7 @@ def test_get_active_doctors(
     db = SqliteDb(TEST_DB)
 
     users_data = [(i, bool(random.randint(0, 1))) for i in range(n_users)]
-    doctors_data = [
-        (f"distr{i}", i, f"spec{i}", f"dic{i}") for i in range(n_doctors)
-    ]
+    doctors_data = [(f"distr{i}", i, f"spec{i}", f"dic{i}") for i in range(n_doctors)]
     doctor_ids = set()
     for doctor_data in doctors_data:
         new_doctor = pydantic_models.DbDoctorToCreate(

@@ -19,3 +19,4 @@ class DbUser(BaseModel):
     ping_status: bool | None = False
     doctor_id: Optional[str] = None
     last_seen: Optional[datetime] = None
+    limit_days: Optional[int] = None

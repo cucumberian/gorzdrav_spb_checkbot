@@ -29,6 +29,7 @@ class UserOrm(Base):
     last_seen: datetime - last time user was in system
     doctor_id: int - id of doctor for user
     doctor: DoctorOrm - doctor for user
+    limit_date: date - дата окончания поиска свободного места
     """
 
     __tablename__ = "users"
@@ -43,12 +44,12 @@ class UserOrm(Base):
         default=None,
     )
     doctor: Mapped["DoctorOrm"] = relationship(back_populates="users")
+    limit_days: Mapped[int | None] = mapped_column(default=None)
 
     @property
     def ping_status_str(self) -> str:
         return (
-            "Статус проверки: "
-            + f"{'Включена' if self.ping_status else 'Отключена'}"
+            "Статус проверки: " + f"{'Включена' if self.ping_status else 'Отключена'}"
         )
 
     def __repr__(self) -> str:
