@@ -1,14 +1,23 @@
-from enum import StrEnum
-import requests
+import logging
 import time
+from enum import StrEnum
 
-from gorzdrav.api import Gorzdrav
-from queries.orm import SyncOrm
+import requests
+
 import db.models as db_models
-
 from config import Config
 from depends import sqlite_db as DB
+from gorzdrav.api import Gorzdrav
+from models.pydantic_models import DbUser
+from queries.orm import SyncOrm
 
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+)
+
+logger = logging.getLogger(__name__)
 
 SyncOrm.create_tables()
 
@@ -16,7 +25,6 @@ SyncOrm.create_tables()
 class TGParseMode(StrEnum):
     HTML = "html"
     MARKDOWN = "Markdown"
-    MARKDOWN_V2 = "MarkdownV2"
 
 
 # send message to telegram with requests.post
@@ -100,9 +108,13 @@ if __name__ == "__main__":
 
 def old_checker(timeout_secs: int = 120):
     time.sleep(2)
+    logger.info("old checker started")
 
     while True:
         active_doctors = DB.get_active_doctors()
+
+        logger.warning("active docs: %s", active_doctors)
+
         for active_doctor in active_doctors:
             time.sleep(0.2)
             doctor = Gorzdrav.get_doctor(
@@ -111,6 +123,7 @@ def old_checker(timeout_secs: int = 120):
                 specialtyId=active_doctor.specialtyId,
                 doctorId=active_doctor.doctorId,
             )
+            logger.warning("doctor: %s", doctor.model_dump_json(indent=2))
             if doctor is None:
                 continue
 
@@ -130,8 +143,22 @@ def old_checker(timeout_secs: int = 120):
                     + "Отслеживание отключено."
                 )
 
-                users = DB.get_users_by_doctor(doctor_id=active_doctor.id)
+                users: list[DbUser] = DB.get_users_by_doctor(doctor_id=active_doctor.id)
                 for user in users:
+                    logger.debug("user: %s", user.model_dump_json(indent=2))
+
+                    # ПРОВЕРЯТЬ НАДО НЕ ПОЛЕ nearestDate, а appointments врача
+                    # Закоментированный код выдаёт неверные результаты
+                    # проверяем подойдёт ли доктор в лимит дней пользователя
+                    # is_doc_in_limit = CheckerApp.is_doc_nearestDate_in_user_limit_days(
+                    #     user=user, doctor=doctor
+                    # )
+                    # logger.debug("is_doc_in_limit: %s", is_doc_in_limit)
+
+                    # # пропускаем пользователя, если доктор ему не подходит по времени
+                    # if not is_doc_in_limit:
+                    #     continue
+
                     time.sleep(0.2)
                     send_message(
                         message=message,

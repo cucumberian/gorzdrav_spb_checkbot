@@ -28,7 +28,7 @@ from states.states import STATES_NAMES, MiState
 from states.states import StateManager as SM
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
@@ -275,6 +275,10 @@ def get_help(message: Message):
         + "/status - узнать текущий статус талонов у врача\n"
         + "/on - включить отслеживание талонов\n"
         + "/off - отключить отслеживание талонов\n"
+        + "/1 - установить просмотр мест в течении сегодняшнего дня\n"
+        + "/7 - установить просмотр мест в течении недели\n"
+        + "/n - установить просмотр мест в течении n-дней\n"
+        + "/0 - искать свободные места в любое время\n"
         + "/delete - удалить профиль пользователя\n"
         + "/state - узнать текущее состояние бота\n\n"
         + "/set_doctor - выбрать врача и медицинское учреждение"
@@ -677,7 +681,9 @@ def id_message(message: Message):
     """
     Пишет пользователю его telegram id.
     """
-    bot.send_message(message.chat.id, "Ваш telegram id: " + str(message.chat.id))
+    bot.send_message(
+        chat_id=message.chat.id, text="Ваш telegram id: " + str(message.chat.id)
+    )
 
 
 @bot.message_handler(commands=["on"])  # type: ignore
@@ -689,10 +695,14 @@ def ping_on(message: Message):
     """
     if message.from_user is None:
         return
-    user_id = message.from_user.id
+    user_id: int = message.from_user.id
     # SyncOrm.update_user(user_id=user_id, ping_status=True)
     DB.set_user_ping_status(user_id=user_id, ping_status=True)
-    bot.reply_to(message, "Отслеживание включено")  # type: ignore
+    user: DbUser | None = DB.get_user(user_id=user_id)
+    if user is None:
+        return
+    text = f"Отслеживание {f'в пределах {user.limit_days} дней ' if user.limit_days else ''}включено"
+    bot.reply_to(message=message, text=text)  # type: ignore
 
 
 @bot.message_handler(commands=["off"])  # type: ignore
@@ -704,10 +714,10 @@ def ping_off(message: Message):
     """
     if message.from_user is None:
         return
-    user_id = message.from_user.id
+    user_id: int = message.from_user.id
     # SyncOrm.update_user(user_id=user_id, ping_status=False)
     DB.set_user_ping_status(user_id=user_id, ping_status=False)
-    bot.reply_to(message, "Отслеживание выключено")  # type: ignore
+    bot.reply_to(message=message, text="Отслеживание выключено")  # type: ignore
 
 
 @bot.message_handler(commands=["delete"])  # type: ignore
@@ -721,10 +731,10 @@ def delete_user(message: Message):
     user_id = message.from_user.id
 
     DB.delete_user(user_id=user_id)
-    SM.set_state(user_id, STATES_NAMES.NO_PROFILE)
+    SM.set_state(user_id=user_id, state_name=STATES_NAMES.NO_PROFILE)
     bot.reply_to(  # type: ignore
-        message,
-        "Ваш профиль удалён.\n" + "Выполните команду /start за создания профиля.",
+        message=message,
+        text="Ваш профиль удалён.\n" + "Выполните команду /start за создания профиля.",
     )
 
 
@@ -738,8 +748,8 @@ def get_status(message: Message):
     """
     if message.from_user is None:
         return
-    user_id = message.from_user.id
-    user = DB.get_user(user_id=user_id)
+    user_id: int = message.from_user.id
+    user: DbUser | None = DB.get_user(user_id=user_id)
     if user is None:
         return
     user_doctor = DB.get_user_doctor(user_id=user_id)
@@ -758,7 +768,7 @@ def get_status(message: Message):
         )
         return None
 
-    link = Gorzdrav.generate_link(
+    link: str = Gorzdrav.generate_link(
         districtId=user_doctor.districtId,
         lpuId=gorzdrav_doctor.lpuId,
         specialtyId=gorzdrav_doctor.specialtyId,
@@ -766,10 +776,10 @@ def get_status(message: Message):
     )
 
     ping_text = f"Отслеживание {'включено' if user.ping_status else 'отключено'}."
-    limit_days_text = f"Лимит дней: {
+    limit_days_text: str = f"Лимит дней: {
         user.limit_days if user.limit_days is not None else 'не установлен'
     }."
-    text = f"{gorzdrav_doctor}\n{ping_text}\n{limit_days_text}"
+    text: str = f"{gorzdrav_doctor}\n{ping_text}\n{limit_days_text}"
     text += f"\n\nСсылка на запись: [ссылка]({link})"
     bot.reply_to(
         message=message,
@@ -798,7 +808,7 @@ if __name__ == "__main__":
     checker = multiprocessing.Process(
         target=checker.old_checker,
         name="gorzdrav_checker",
-        kwargs={},
+        kwargs={"timeout_secs": Config.CHECKER_TIMEOUT_SECS},
         daemon=True,
     )
     checker.start()

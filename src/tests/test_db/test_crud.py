@@ -1,9 +1,13 @@
-import pytest
+import datetime
 import os
 import random
-import datetime
+
+import pytest
+from faker import Faker
+
 from db.sqlite_db import SqliteDb
 from models import pydantic_models
+from models.pydantic_models import DbUser
 
 # generate random name for db
 random_name = str(random.randint(10_000_000, 99_999_999))
@@ -11,10 +15,24 @@ TEST_DB = f"{random_name}.db"
 
 
 @pytest.fixture(autouse=True, scope="function")
-def create_db(request):
-    SqliteDb(TEST_DB)
-    yield
+def test_db(request):
+    db = SqliteDb(TEST_DB)
+    yield db
     os.remove(TEST_DB)
+
+
+@pytest.fixture(autouse=False, scope="function")
+def r_user(test_db: SqliteDb) -> DbUser:
+    fak = Faker()
+    user = DbUser(
+        id=random.randint(1, 100_000),
+        ping_status=bool(random.randint(0, 1)),
+        doctor_id=str(random.randint(1, 100_000)),
+        last_seen=fak.date_time(),
+        limit_days=random.randint(1, 100_000),
+    )
+    test_db.add_user(user=user)
+    return user
 
 
 @pytest.mark.parametrize(
@@ -34,13 +52,13 @@ def create_db(request):
     ],
 )
 def test_add_user(
+    test_db: SqliteDb,
     user_id: int,
     ping_status: bool | None,
     doctor_id: str | None,
     last_seen: datetime,
     limit_days: int | None,
 ):
-    db = SqliteDb(TEST_DB)
     new_user = pydantic_models.DbUser(
         id=user_id,
         ping_status=ping_status,
@@ -48,8 +66,8 @@ def test_add_user(
         last_seen=last_seen,
         limit_days=limit_days,
     )
-    db.add_user(new_user)
-    db_user = db.get_user(user_id)
+    test_db.add_user(new_user)
+    db_user = test_db.get_user(user_id)
 
     assert db_user is not None
     assert db_user == new_user
@@ -75,17 +93,22 @@ def test_add_user(
         ("-1", 1, "специальность", "ид доктора"),
     ],
 )
-def test_add_doctor(districtId: str, lpuId: int, specialtyId: str, doctorId: str):
-    db = SqliteDb(TEST_DB)
+def test_add_doctor(
+    test_db: SqliteDb,
+    districtId: str,
+    lpuId: int,
+    specialtyId: str,
+    doctorId: str,
+):
     new_doctor = pydantic_models.DbDoctorToCreate(
         districtId=districtId,
         lpuId=lpuId,
         specialtyId=specialtyId,
         doctorId=doctorId,
     )
-    db_doctor_id = db.add_doctor(new_doctor)
-    db_doctor = db.get_doctor(doctor_id=db_doctor_id)
-
+    db_doctor_id = test_db.add_doctor(new_doctor)
+    db_doctor = test_db.get_doctor(doctor_id=db_doctor_id)
+    assert db_doctor is not None
     assert db_doctor.doctorId == doctorId
     assert db_doctor.lpuId == lpuId
     assert db_doctor.specialtyId == specialtyId
@@ -100,17 +123,18 @@ def test_add_doctor(districtId: str, lpuId: int, specialtyId: str, doctorId: str
     ],
 )
 def test_get_ping_status(
+    test_db: SqliteDb,
     user_id: int,
     ping_status: bool,
     expectation: bool,
 ):
-    db = SqliteDb(TEST_DB)
     new_user = pydantic_models.DbUser(
         id=user_id,
         ping_status=ping_status,
     )
-    db.add_user(user=new_user)
-    db_user = db.get_user(user_id=user_id)
+    test_db.add_user(user=new_user)
+    db_user = test_db.get_user(user_id=user_id)
+    assert db_user is not None
     assert db_user.ping_status == expectation
 
 
@@ -118,19 +142,20 @@ def test_get_ping_status(
     "ping_status, expected_result",
     [(True, True), (False, False)],
 )
-def test_set_user_ping_status(ping_status: bool, expected_result: bool):
-    pass
-    user_id = random.randint(0, 1000000)
-    new_user = pydantic_models.DbUser(
-        id=user_id,
-    )
-    db = SqliteDb(TEST_DB)
-    db.add_user(user=new_user)
-    db.set_user_ping_status(user_id=user_id, ping_status=ping_status)
-    db_user = db.get_user(user_id=user_id)
+def test_set_user_ping_status(
+    test_db: SqliteDb,
+    r_user: DbUser,
+    ping_status: bool,
+    expected_result: bool,
+):
+    test_db.add_user(user=r_user)
+    test_db.set_user_ping_status(user_id=r_user.id, ping_status=ping_status)
+    db_user = test_db.get_user(user_id=r_user.id)
+    assert db_user is not None
     assert db_user.ping_status == expected_result
-    db.set_user_ping_status(user_id=user_id, ping_status=not ping_status)
-    db_user = db.get_user(user_id=user_id)
+    test_db.set_user_ping_status(user_id=r_user.id, ping_status=not ping_status)
+    db_user = test_db.get_user(user_id=r_user.id)
+    assert db_user is not None
     assert db_user.ping_status != expected_result
 
 
@@ -157,6 +182,8 @@ def test_get_user_doctor(
     db.add_user_doctor(user_id=user_id, doctor_id=doctor_id)
     db_user = db.get_user(user_id=user_id)
     db_doctor = db.get_user_doctor(user_id=user_id)
+    assert db_user is not None
+    assert db_doctor is not None
     assert db_user.doctor_id == doctor_id
     assert db_doctor.id == db_user.doctor_id
     assert db_doctor.districtId == districtId
@@ -189,9 +216,11 @@ def test_update_user_time(last_seen):
     db = SqliteDb(TEST_DB)
     db.add_user(new_user)
     db_user = db.get_user(user_id=user_id)
+    assert db_user is not None
     assert db_user.last_seen == initial_timestamp
     db.update_user_time(user_id=user_id, last_seen=last_seen)
     db_user = db.get_user(user_id=user_id)
+    assert db_user is not None
     if last_seen is None:
         timedelta = datetime.timedelta(milliseconds=50)
         current_time = datetime.datetime.now(datetime.UTC)
@@ -237,6 +266,7 @@ def test_get_active_doctors(
     for user_data in users_data:
         if user_data[1]:
             db_user = db.get_user(user_data[0])
+            assert db_user is not None
             if db_user.doctor_id is None:
                 continue
             active_user_doctors.add(db_user.doctor_id)
@@ -244,26 +274,25 @@ def test_get_active_doctors(
     assert len(active_user_doctors) == len(active_doctors)
 
 
-# def test_get_users_by_doctor():
-#     db = SqliteDb(TEST_DB)
-#     timestamp = datetime.now()
+# def test_get_users_by_doctor(test_db: SqliteDb):
+#     timestamp = datetime.datetime.now(datetime.UTC)
 #     users_num = random.randint(5, 10)
-#     users = [User(id=i, last_seen=timestamp) for i in range(users_num)]
+#     users = [DbUser(id=i, last_seen=timestamp) for i in range(users_num)]
 #     doctor = DoctorToCreate(
 #         doctor_id=str(random.random()),
 #         speciality_id=str(random.random()),
 #         hospital_id=str(random.random()),
 #     )
 #     # для каждого пользователя есть доктор
-#     doctor_id = db.add_doctor(doctor)
+#     doctor_id = test_db.add_doctor(doctor)
 #     users_has_doctor = [bool(random.randint(0, 1)) for i in range(users_num)]
 
 #     for user_index, user in enumerate(users):
-#         db.add_user(user)
+#         test_db.add_user(user)
 #         if users_has_doctor[user_index]:
-#             db.add_user_doctor(user_id=user.id, doctor_id=doctor_id)
+#             test_db.add_user_doctor(user_id=user.id, doctor_id=doctor_id)
 
-#     selected_users: list[User] = db.get_users_by_doctor(doctor_id=doctor_id)
+#     selected_users: list[DbUser] = test_db.get_users_by_doctor(doctor_id=doctor_id)
 #     for user_index, user in enumerate(users):
 #         if users_has_doctor[user_index]:
 #             assert user.id in [u.id for u in selected_users]

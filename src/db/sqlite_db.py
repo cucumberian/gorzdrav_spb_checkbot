@@ -352,14 +352,21 @@ class SqliteDb:
                 users.id,
                 users.ping_status,
                 users.doctor_id,
-                users.last_seen
+                users.last_seen,
+                users.limit_days
             FROM users
             WHERE users.doctor_id == ?;
         """
         self.cursor.execute(q, (doctor_id,))
         results = self.cursor.fetchall()
         users = [
-            DbUser(id=d[0], ping_status=d[1], doctor_id=d[2], last_seen=d[3])
+            DbUser(
+                id=d[0],
+                ping_status=d[1],
+                doctor_id=d[2],
+                last_seen=d[3],
+                limit_days=d[4],
+            )
             for d in results
         ]
         return users
