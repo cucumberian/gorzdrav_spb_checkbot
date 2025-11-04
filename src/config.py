@@ -14,4 +14,4 @@ class Config:
     HEADERS = {"User-Agent": "gorzdrav-spb-bot"}
     DSN_STRING = f"sqlite:///{DB_FILE}"
 
-    LIMIT_DAYS_REGEX=r"^/\d{1,2}$"
+    LIMIT_DAYS_REGEX = r"^/\d{1,2}$"

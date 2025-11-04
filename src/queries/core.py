@@ -1,6 +1,7 @@
 from db.database import sync_engine
 from db.models import metadata_obj
 
+
 class SyncCore:
     @staticmethod
     def create_tables():

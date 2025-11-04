@@ -41,15 +41,10 @@ def test_get_doctors_endpoint(lpuId, specialtyId):
     )
 
 
-@pytest.mark.parametrize(
-    "lpuId, doctorId", [(1, "1"), (1, "doctor"), (-1, "")]
-)
+@pytest.mark.parametrize("lpuId, doctorId", [(1, "1"), (1, "doctor"), (-1, "")])
 def test_get_timetable_endpoint(lpuId: int, doctorId: str):
     res = Gorzdrav._Gorzdrav__get_timetable_endpoint(lpuId, doctorId)
-    assert (
-        res
-        == f"{Config.API_URL}/schedule/lpu/{lpuId}/doctor/{doctorId}/timetable"
-    )
+    assert res == f"{Config.API_URL}/schedule/lpu/{lpuId}/doctor/{doctorId}/timetable"
 
 
 @pytest.mark.parametrize(
@@ -64,6 +59,5 @@ def test_get_timetable_endpoint(lpuId: int, doctorId: str):
 def test_get_appointments_endpoint(lpuId: int, doctorId: str):
     res = Gorzdrav._Gorzdrav__get_appointments_endpoint(lpuId, doctorId)
     assert (
-        res
-        == f"{Config.API_URL}/schedule/lpu/{lpuId}/doctor/{doctorId}/appointments"
+        res == f"{Config.API_URL}/schedule/lpu/{lpuId}/doctor/{doctorId}/appointments"
     )

@@ -72,6 +72,8 @@ def get_keyboard(keys: list[KeySchema], max_buttons: int = 50) -> InlineKeyboard
         )
         kb.add(btn)  # type: ignore
 
+        if btn.callback_data is None:
+            continue
         total_size += (
             len(btn.text.encode("utf-8")) + len(btn.callback_data.encode("utf-8")) + 20
         )

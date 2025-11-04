@@ -93,9 +93,7 @@ def parse_url(url: str) -> LinkParsingResult | None:
     """
     try:
         unquoted_url = unquote(string=url, encoding="utf-8")
-        free_schedule_regex = (
-            r"https://gorzdrav.spb.ru/service-free-schedule#(.+)"
-        )
+        free_schedule_regex = r"https://gorzdrav.spb.ru/service-free-schedule#(.+)"
         url_substring = re.search(free_schedule_regex, unquoted_url).group(1)
         json_result = json.loads(url_substring)
         json_dict = {}

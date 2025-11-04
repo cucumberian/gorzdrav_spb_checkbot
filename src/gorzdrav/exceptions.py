@@ -6,7 +6,7 @@ class GorzdravExceptionBase(Exception):
     "message": "Не найдено расписание медицинского ресурса",
     "requestId": "00000000-0000-0000-0000-000000000000"
     },
-    
+
     {'errorCode': 660,
     'message': 'Что-то пошло не так. Попробуйте записаться позже',
     'requestId': '00000000-0000-0000-0000-000000000000',
@@ -17,7 +17,7 @@ class GorzdravExceptionBase(Exception):
                 'обратитесь в регистратуру или колл-центр медицинской организации',
     'requestId': 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
     'success': False}
-    
+
     {'errorCode': 602,
     'message'='Медорганизация нам не ответила. Попробуйте записаться позже или'
                 ' обратитесь в регистратуру медорганизации',
@@ -36,9 +36,7 @@ class GorzdravExceptionBase(Exception):
         self.url = url
 
     def to_dict(self):
-        return dict(
-            message=self.message, errorCode=self.errorCode, url=self.url
-        )
+        return dict(message=self.message, errorCode=self.errorCode, url=self.url)
 
     def __str__(self):
         return f"message={self.message}, errorCode={self.errorCode}, url={self.url}"
