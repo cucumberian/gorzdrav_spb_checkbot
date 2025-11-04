@@ -1,6 +1,8 @@
+from telebot.util import extract_command
 import pytest
 import random
 import os
+from config import Config
 from db.sqlite_db import SqliteDb
 from models.pydantic_models import DbUser
 

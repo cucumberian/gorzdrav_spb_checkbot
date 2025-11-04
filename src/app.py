@@ -1,36 +1,31 @@
-from functools import wraps
-from gc import disable
-from typing import Any, Callable
-import multiprocessing
 import logging
-
-from pydantic import BaseModel
-
+import multiprocessing
+from functools import wraps
+from typing import Any, Callable
 
 import telebot
-from telebot.types import Message
-from telebot.types import InaccessibleMessage
-from telebot.types import CallbackQuery
+from pydantic import BaseModel
 from telebot.storage import StateMemoryStorage
+from telebot.types import (
+    CallbackQuery,
+    InaccessibleMessage,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
+from telebot.util import extract_command, is_command
 
-from telebot.types import InlineKeyboardMarkup
-from telebot.types import InlineKeyboardButton
-
-from gorzdrav.api import Gorzdrav
-import gorzdrav.models as api_models
-from gorzdrav.exceptions import GorzdravExceptionBase
-from models import pydantic_models
 import checker
-from depends import sqlite_db as DB
+import gorzdrav.models as api_models
 from config import Config
-
-
-from states.states import StateManager as SM
-from states.states import MiState
-from states.states import STATES_NAMES
-
+from depends import sqlite_db as DB
+from gorzdrav.api import Gorzdrav
+from gorzdrav.exceptions import GorzdravExceptionBase
 from keyboard_service import ButtonSchema, KeyboardService
-
+from models import pydantic_models
+from models.pydantic_models import DbUser
+from states.states import STATES_NAMES, MiState
+from states.states import StateManager as SM
 
 logging.basicConfig(
     level=logging.INFO,
@@ -200,6 +195,46 @@ def close_message(call: CallbackQuery):
         chat_id=call.message.chat.id,
         message_id=call.message.message_id,
     )
+
+
+# установка лимита дней для поиска свободных мест
+@bot.message_handler(regexp=Config.LIMIT_DAYS_REGEX)
+def get_set_limit_command(message: Message):
+    tg_user = message.from_user
+    if tg_user is None:
+        return
+    user_id = tg_user.id
+
+    assert message.text
+
+    if not is_command(text=message.text):
+        return
+    command = extract_command(message.text)
+
+    assert command
+    days_count = int(command)
+
+    if days_count < 1:
+        days_count = None  # сбрасываем количество дней у пользователя
+
+    DB.set_limit_days(user_id=user_id, limit_days=days_count)
+    db_user: DbUser | None = DB.get_user(user_id=user_id)
+    if db_user is None:
+        bot.reply_to(
+            message=message, text="Пользователь не найден. Зарегистрируйтесь /start"
+        )
+        return
+
+    if db_user.limit_days is not None:
+        bot.reply_to(
+            message=message,
+            text=f"Установлено кол-во дней для проверки свободных мест: {db_user.limit_days}",
+        )
+    else:
+        bot.reply_to(
+            message=message,
+            text="Сброшено кол-во дней для проверки свободных мест",
+        )
 
 
 @bot.message_handler(commands=["start"])  # type: ignore
@@ -625,11 +660,13 @@ def set_doctor(call: CallbackQuery):
         + "\n"
         + f"{ping_text}\n\n"
     )
-    text += f"Ссылка на запись: {link}"
+    text += f"Ссылка на запись: [ссылка]({link})"
 
     bot.send_message(
         chat_id=call.message.chat.id,
         text=text,
+        parse_mode="markdown",
+        disable_web_page_preview=True,
     )
 
 
@@ -727,7 +764,10 @@ def get_status(message: Message):
     )
 
     ping_text = f"Отслеживание {'включено' if user.ping_status else 'отключено'}."
-    text = f"{gorzdrav_doctor}\n{ping_text}"
+    limit_days_text = f"Лимит дней: {
+        user.limit_days if user.limit_days is not None else 'не установлен'
+    }."
+    text = f"{gorzdrav_doctor}\n{ping_text}\n{limit_days_text}"
     text += f"\n\nСсылка на запись: [ссылка]({link})"
     bot.reply_to(
         message=message,

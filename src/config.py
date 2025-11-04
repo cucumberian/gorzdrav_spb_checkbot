@@ -13,3 +13,5 @@ class Config:
     API_URL = f"{GORZDRAV_API}/{GORZDRAV_API_V}"
     HEADERS = {"User-Agent": "gorzdrav-spb-bot"}
     DSN_STRING = f"sqlite:///{DB_FILE}"
+
+    LIMIT_DAYS_REGEX=r"^/\d{1,2}$"
