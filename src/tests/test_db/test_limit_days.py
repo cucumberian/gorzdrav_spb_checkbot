@@ -1,9 +1,9 @@
-import pytest
-import random
 import os
-from core.checker_logic import CheckerApp
+import random
+
+import pytest
+
 from db.sqlite_db import SqliteDb
-from gorzdrav.models import Doctor
 from models.pydantic_models import DbUser
 
 random_name = str(random.randint(10_000_000, 99_999_999))
@@ -77,24 +77,3 @@ def test_reset_limit_days(test_db: SqliteDb, test_user: DbUser, limit_days: int)
     u = test_db.get_user(user_id=test_user.id)
     assert u is not None
     assert u.limit_days is None
-
-
-def test_is_doctor_in_limit():
-    user = DbUser(id=1, limit_days=1)
-    doctor = Doctor.model_validate(
-        {
-            "id": "200",
-            "name": "Бибилова Венера Георгиевна",
-            "freeParticipantCount": 6,
-            "freeTicketCount": 6,
-            "lastDate": "2025-11-06T00:00:00",
-            "nearestDate": "2025-11-06T00:00:00",
-            "ariaNumber": "608",
-            "districtId": "8",
-            "lpuId": 143,
-            "specialtyId": "52",
-        }
-    )
-    check = CheckerApp.is_doc_nearestDate_in_user_limit_days(user=user, doctor=doctor)
-    assert check is False
-

@@ -805,11 +805,11 @@ if __name__ == "__main__":
     logger.info("Bot started")
 
     # запускаем процесс с отправкой уведомлений
-    checker = multiprocessing.Process(
-        target=checker.old_checker,
+    old_scheduler = multiprocessing.Process(
+        target=checker.old_scheduler,
         name="gorzdrav_checker",
         kwargs={"timeout_secs": Config.CHECKER_TIMEOUT_SECS},
         daemon=True,
     )
-    checker.start()
+    old_scheduler.start()
     bot.polling(none_stop=True)

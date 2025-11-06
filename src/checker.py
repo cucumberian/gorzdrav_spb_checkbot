@@ -8,7 +8,8 @@ import db.models as db_models
 from config import Config
 from depends import sqlite_db as DB
 from gorzdrav.api import Gorzdrav
-from models.pydantic_models import DbUser
+from gorzdrav.models import Doctor
+from models.pydantic_models import DbDoctor, DbUser
 from queries.orm import SyncOrm
 
 
@@ -106,66 +107,69 @@ if __name__ == "__main__":
     scheduler()
 
 
-def old_checker(timeout_secs: int = 120):
+def old_scheduler(timeout_secs: int):
     time.sleep(2)
-    logger.info("old checker started")
-
+    logger.info("old scheduler started")
     while True:
-        active_doctors = DB.get_active_doctors()
+        old_checker(timeout_secs=timeout_secs)
 
-        logger.warning("active docs: %s", active_doctors)
 
-        for active_doctor in active_doctors:
-            time.sleep(0.2)
-            doctor = Gorzdrav.get_doctor(
-                districtId=active_doctor.districtId,
-                lpuId=active_doctor.lpuId,
-                specialtyId=active_doctor.specialtyId,
-                doctorId=active_doctor.doctorId,
+def old_checker(timeout_secs: int = 120):
+    active_doctors: list[DbDoctor] = DB.get_active_doctors()
+
+    logger.warning("active docs: %s", active_doctors)
+
+    for active_doctor in active_doctors:
+        time.sleep(0.2)
+        doctor: Doctor | None = Gorzdrav.get_doctor(
+            districtId=active_doctor.districtId,
+            lpuId=active_doctor.lpuId,
+            specialtyId=active_doctor.specialtyId,
+            doctorId=active_doctor.doctorId,
+        )
+        if doctor is None:
+            continue
+        logger.warning("doctor: %s", doctor.model_dump_json(indent=2))
+
+        if doctor.have_free_places:
+            link = Gorzdrav.generate_link(
+                districtId=doctor.districtId,
+                lpuId=doctor.lpuId,
+                specialtyId=doctor.specialtyId,
+                scheduleId=doctor.doctorId,
             )
-            logger.warning("doctor: %s", doctor.model_dump_json(indent=2))
-            if doctor is None:
-                continue
+            message = (
+                f"Врач {doctor.name} доступен для записи.\n"
+                + f"Мест для записи: {doctor.freeParticipantCount}.\n"
+                + f"Талонов для записи: {doctor.freeTicketCount}.\n"
+                + "\n"
+                + f"Запишитесь на приём по [ссылке]({link})\n\n"
+                + "Отслеживание отключено."
+            )
 
-            if doctor.have_free_places:
-                link = Gorzdrav.generate_link(
-                    districtId=doctor.districtId,
-                    lpuId=doctor.lpuId,
-                    specialtyId=doctor.specialtyId,
-                    scheduleId=doctor.doctorId,
+            users: list[DbUser] = DB.get_users_by_doctor(doctor_id=active_doctor.id)
+            for user in users:
+                logger.debug("user: %s", user.model_dump_json(indent=2))
+
+                # ПРОВЕРЯТЬ НАДО НЕ ПОЛЕ nearestDate, а appointments врача
+                # Закоментированный код выдаёт неверные результаты
+                # проверяем подойдёт ли доктор в лимит дней пользователя
+                # is_doc_in_limit = CheckerApp.is_doc_nearestDate_in_user_limit_days(
+                #     user=user, doctor=doctor
+                # )
+                # logger.debug("is_doc_in_limit: %s", is_doc_in_limit)
+
+                # # пропускаем пользователя, если доктор ему не подходит по времени
+                # if not is_doc_in_limit:
+                #     continue
+
+                time.sleep(0.2)
+                send_message(
+                    message=message,
+                    api_token=Config.BOT_TOKEN,
+                    chat_id=user.id,
+                    parse_mode=TGParseMode.MARKDOWN,
                 )
-                message = (
-                    f"Врач {doctor.name} доступен для записи.\n"
-                    + f"Мест для записи: {doctor.freeParticipantCount}.\n"
-                    + f"Талонов для записи: {doctor.freeTicketCount}.\n"
-                    + "\n"
-                    + f"Запишитесь на приём по [ссылке]({link})\n\n"
-                    + "Отслеживание отключено."
-                )
+                DB.set_user_ping_status(user_id=user.id, ping_status=False)
 
-                users: list[DbUser] = DB.get_users_by_doctor(doctor_id=active_doctor.id)
-                for user in users:
-                    logger.debug("user: %s", user.model_dump_json(indent=2))
-
-                    # ПРОВЕРЯТЬ НАДО НЕ ПОЛЕ nearestDate, а appointments врача
-                    # Закоментированный код выдаёт неверные результаты
-                    # проверяем подойдёт ли доктор в лимит дней пользователя
-                    # is_doc_in_limit = CheckerApp.is_doc_nearestDate_in_user_limit_days(
-                    #     user=user, doctor=doctor
-                    # )
-                    # logger.debug("is_doc_in_limit: %s", is_doc_in_limit)
-
-                    # # пропускаем пользователя, если доктор ему не подходит по времени
-                    # if not is_doc_in_limit:
-                    #     continue
-
-                    time.sleep(0.2)
-                    send_message(
-                        message=message,
-                        api_token=Config.BOT_TOKEN,
-                        chat_id=user.id,
-                        parse_mode=TGParseMode.MARKDOWN,
-                    )
-                    DB.set_user_ping_status(user_id=user.id, ping_status=False)
-
-        time.sleep(timeout_secs)
+    time.sleep(timeout_secs)
