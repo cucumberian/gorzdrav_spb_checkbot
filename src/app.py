@@ -1,6 +1,7 @@
 import logging
 import multiprocessing
 from functools import wraps
+from pydoc import doc
 from typing import Any, Callable
 
 import telebot
@@ -26,6 +27,7 @@ from models import pydantic_models
 from models.pydantic_models import DbUser
 from states.states import STATES_NAMES, MiState
 from states.states import StateManager as SM
+from telegram.message_composer import TgMessageComposer
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -625,7 +627,7 @@ def set_doctor(call: CallbackQuery):
     lpu: api_models.ApiLPU = state_payload["lpu"]
     specialty_id = state_payload["specialty_id"]
 
-    doctor = Gorzdrav.get_doctor(
+    doctor: checker.Doctor | None = Gorzdrav.get_doctor(
         lpuId=lpu.id,
         specialtyId=specialty_id,
         doctorId=doctor_id,
@@ -648,25 +650,23 @@ def set_doctor(call: CallbackQuery):
 
     SM.set_state(user_id=user_id, state_name=STATES_NAMES.HAVE_PROFILE)
 
-    user = DB.get_user(user_id=user_id)
+    user: DbUser | None = DB.get_user(user_id=user_id)
     if user is None:
         return
-    ping_text = f"Отслеживание {'включено' if user.ping_status else 'отключено'}."
 
-    link = Gorzdrav.generate_link(
+    link: str = Gorzdrav.generate_link(
         districtId=district_id,
         lpuId=lpu.id,
         specialtyId=specialty_id,
         scheduleId=doctor_id,
     )
-    text = (
-        f"Выбран врач {doctor.name}\n"
-        + f"Свободных мест {doctor.freeParticipantCount}.\n"
-        + f"Свободных талонов {doctor.freeTicketCount}.\n"
-        + "\n"
-        + f"{ping_text}\n\n"
+    text: str = TgMessageComposer.get_doc_selected_message_md(
+        doctor_name=doctor.name,
+        free_participant_count=doctor.freeParticipantCount,
+        free_ticket_count=doctor.freeTicketCount,
+        doctor_link=link,
+        ping_status=user.ping_status or False,
     )
-    text += f"Ссылка на запись: [ссылка]({link})"
 
     bot.send_message(
         chat_id=call.message.chat.id,
