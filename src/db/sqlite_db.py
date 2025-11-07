@@ -2,7 +2,7 @@ import datetime
 import hashlib
 import sqlite3
 
-from models.pydantic_models import DbDoctor
+from models.pydantic_models import DbDoctor, DbDoctorWithUsers
 from models.pydantic_models import DbDoctorToCreate
 from models.pydantic_models import DbUser
 
@@ -382,3 +382,63 @@ class SqliteDb:
         q = """UPDATE users SET limit_days = NULL WHERE id = ?;"""
         self.cursor.execute(q, (user_id,))
         self.connection.commit()
+
+    def get_active_doctors_joined_users(self) -> dict[str, DbDoctorWithUsers]:
+        """
+        Возвращает словарь докторов с пингующими их пользовтелями
+        Args:
+            None: None
+        Returns:
+            dict[str, DbDoctorWithUsers]: словарь докторов с их активными пользователями
+        """
+        q = """
+        SELECT
+            doctors.id,
+            doctors.districtId,
+            doctors.lpuId,
+            doctors.specialtyId,
+            doctors.doctorId,
+            users.id,
+            users.ping_status,
+            users.doctor_id,
+            users.last_seen,
+            users.limit_days
+        FROM doctors
+        JOIN users ON doctors.id = users.doctor_id
+        WHERE ping_status == 1;
+        """
+        self.cursor.execute(q)
+        results = self.cursor.fetchall()
+        result = [
+            (
+                DbDoctor(
+                    id=d[0],
+                    districtId=d[1],
+                    lpuId=d[2],
+                    specialtyId=d[3],
+                    doctorId=d[4],
+                ),
+                DbUser(
+                    id=d[5],
+                    ping_status=d[6],
+                    doctor_id=d[7],
+                    last_seen=d[8],
+                    limit_days=d[9],
+                ),
+            )
+            for d in results
+        ]
+        d: dict[str, DbDoctorWithUsers] = {}
+        for doctor, user in result:
+            if doctor.id not in d:
+                d[doctor.id] = DbDoctorWithUsers(
+                    id=doctor.id,
+                    districtId=doctor.districtId,
+                    lpuId=doctor.lpuId,
+                    specialtyId=doctor.specialtyId,
+                    doctorId=doctor.doctorId,
+                    pinging_users=[user],
+                )
+            else:
+                d[doctor.id].pinging_users.append(user)
+        return d

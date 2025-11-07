@@ -161,7 +161,7 @@ class Gorzdrav:
         Returns:
             Doctor | None: врач если найден
         """
-        doctors: list[ApiDoctor] = cls.get_doctors(lpuId, specialtyId)
+        doctors: list[ApiDoctor] = cls.get_doctors(lpuId=lpuId, specialtyId=specialtyId)
         for doctor in doctors:
             if doctor.id == doctorId:
                 doc = Doctor(
@@ -194,11 +194,11 @@ class Gorzdrav:
     @classmethod
     def get_appointments(
         cls,
-        lpu_id: int,
-        doctor_id: str,
+        lpuId: int,
+        doctorId: str,
     ) -> list[ApiAppointment]:
         url = GorzdravEndpoint.get_appointments_endpoint(
-            lpuId=lpu_id, doctorId=doctor_id
+            lpuId=lpuId, doctorId=doctorId
         )
         try:
             result = cls.__get_result(url)
