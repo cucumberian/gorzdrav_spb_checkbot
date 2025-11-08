@@ -6,8 +6,9 @@ ENV APPDIR=${HOMEDIR}/src/
 RUN mkdir -p ${APPDIR}
 WORKDIR ${APPDIR}
 
-COPY . ${APPDIR}
-
+COPY requirements.txt ${APPDIR}
 RUN pip3 install --no-cache-dir -r requirements.txt
+
+COPY . ${APPDIR}
 
 CMD ["python3", "app.py"]
