@@ -56,11 +56,11 @@ def get_ids_from_gorzdrav_url(url: str) -> LinkParsingResult | None:
 
     doctor_search = re.search(doctor_regex, url)
     schedule_search = re.search(schedule_regex, url)
-    doctorId = None
+    doctorId: str | None = None
     if doctor_search:
-        doctorId: str = unquote(doctor_search.group(1))
+        doctorId = unquote(doctor_search.group(1))
     elif schedule_search:
-        doctorId: str = unquote(schedule_search.group(1))
+        doctorId = unquote(schedule_search.group(1))
     else:
         return None
     try:

@@ -7,7 +7,6 @@ from gorzdrav.models import ApiAppointment, Doctor
 from models.pydantic_models import DbUser
 from telegram.types import TGParseMode
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -73,7 +72,11 @@ class CheckerApp:
             params={"parse_mode": parse_mode},
         )
         if not response.ok:
-            print(f"Failed to send message to {chat_id}", response.text)
+            logger.warning(
+                "Failed to send message to %s %s",
+                chat_id,
+                response.text,
+            )
 
     @staticmethod
     def check_appointments_in_user_limit_days(
@@ -93,13 +96,13 @@ class CheckerApp:
         appointments_dates = [
             appointment.visitStart.date() for appointment in appointments
         ]
-        print("appointments dates:", appointments_dates)
+        logger.debug("appointments dates: %s", appointments_dates)
         appointments_deltas: list[int] = [
             ((i - current_date).days + 1)
             for i in appointments_dates
             if i >= current_date
         ]
-        print("appointments deltas:", appointments_deltas)
+        logger.debug("appointments deltas: %s", appointments_deltas)
         is_lower: list[bool] = [i <= user.limit_days for i in appointments_deltas]
-        print("is lower:", is_lower)
+        logger.debug("is lower: %s", is_lower)
         return any(is_lower)

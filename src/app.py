@@ -147,13 +147,15 @@ def is_user_have_doctor(func: Callable):
             message = message_or_callback
         else:
             message = message_or_callback.message
+        if not message.from_user:
+            return None
         user_id = message.from_user.id
         # doctor = SyncOrm.get_user_doctor(user_id=user_id)
 
         doctor = DB.get_user_doctor(user_id=user_id)
         if not doctor:
             bot.reply_to(
-                message=message,
+                message=message,  # type: ignore
                 text="Пожалуйста добавьте врача.\n" + "Выполните команду /set_doctor",
             )
             return None

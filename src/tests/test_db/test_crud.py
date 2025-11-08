@@ -56,7 +56,7 @@ def test_add_user(
     user_id: int,
     ping_status: bool | None,
     doctor_id: str | None,
-    last_seen: datetime,
+    last_seen: datetime.datetime | None,
     limit_days: int | None,
 ):
     new_user = pydantic_models.DbUser(
@@ -78,8 +78,11 @@ def test_add_user(
 
     assert db_user.doctor_id == doctor_id
     if last_seen is None:
+        # пользователь должен создаться с текущим временем
         delta_time = datetime.timedelta(milliseconds=50)
-        assert (db_user.last_seen - datetime.datetime.now(datetime.UTC)) < delta_time
+        user_last_seen = db_user.last_seen
+        assert user_last_seen is not None
+        assert (user_last_seen - datetime.datetime.now(datetime.UTC)) < delta_time
     else:
         assert db_user.last_seen == last_seen
 
@@ -221,12 +224,14 @@ def test_update_user_time(last_seen):
     db.update_user_time(user_id=user_id, last_seen=last_seen)
     db_user = db.get_user(user_id=user_id)
     assert db_user is not None
+    user_last_seen = db_user.last_seen
+    assert user_last_seen is not None
     if last_seen is None:
         timedelta = datetime.timedelta(milliseconds=50)
         current_time = datetime.datetime.now(datetime.UTC)
-        assert (db_user.last_seen - current_time) < timedelta
+        assert (user_last_seen - current_time) < timedelta
     else:
-        assert db_user.last_seen == last_seen
+        assert user_last_seen == last_seen
 
 
 @pytest.mark.parametrize(

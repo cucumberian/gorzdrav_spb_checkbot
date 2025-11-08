@@ -22,8 +22,8 @@ def test_lpus_endpoint():
     assert res2 == f"{Config.API_URL}/shared/district/{districtId}/lpus"
 
 
-@pytest.mark.parametrize("lpuId", [(".da",), ("1",), ("aa",)])
-def test_get_specialties_url(lpuId: str):
+@pytest.mark.parametrize("lpuId", [(-1,), (1,), (0,)])
+def test_get_specialties_url(lpuId: int):
     res = GorzdravEndpoint.get_specialties_endpoint(lpuId=lpuId)
     assert res == f"{Config.API_URL}/schedule/lpu/{lpuId}/specialties"
 
