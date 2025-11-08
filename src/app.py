@@ -1,7 +1,6 @@
 import logging
 import multiprocessing
 from functools import wraps
-from pydoc import doc
 from typing import Any, Callable
 
 import telebot

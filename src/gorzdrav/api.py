@@ -33,6 +33,7 @@ class Gorzdrav:
         specialtyId: str,
         scheduleId: str,
     ) -> str:
+        """Составление ссылки на доктора на сайте горздрава"""
         base_link = "https://gorzdrav.spb.ru/service-free-schedule#"
         addon = f"""%5B%7B%22district%22:%22{districtId}%22%7D,%7B%22lpu%22:%22{lpuId}%22%7D,%7B%22speciality%22:%22{specialtyId}%22%7D,%7B%22schedule%22:%22{scheduleId}%22%7D,%7B%22doctor%22:%22{scheduleId}%22%7D%5D"""
         return base_link + addon

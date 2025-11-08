@@ -45,8 +45,9 @@ class ApiDoctor(BaseModel):
 
 class ApiAppointment(BaseModel):
     id: str
-    visitStart: datetime | None
-    visitEnd: datetime | None
+    visitStart: datetime
+    visitEnd: datetime
+    number: int
     room: str | None
 
 

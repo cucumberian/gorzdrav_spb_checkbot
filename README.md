@@ -106,6 +106,10 @@
 - [https://gorzdrav.spb.ru/_api/api/v2/schedule/lpu/1138/doctor/36/timetable](https://gorzdrav.spb.ru/_api/api/v2/schedule/lpu/1138/doctor/36/timetable) - расписание врача 36 в больнице 1138
 - [https://gorzdrav.spb.ru/_api/api/v2/schedule/lpu/30/doctor/222618/appointments](https://gorzdrav.spb.ru/_api/api/v2/schedule/lpu/30/doctor/222618/appointments) - доступные назначения к врачу
 
+### Особенности
+
+При получении списка докторов на сайте горздрава, можно сразу получить информацию о количестве у них свободных мест в поле `freeParticipantCount`. Далее при выборе места для записи запрашивается информация о `appointments`. __Но__ количество `appointments` может отличаться от количества свободных номерков `freeParticipantCount` в поле доктора. Т.е. в списке докторов у него может не быть свободных номерков, но быть несколько свободных `appointments`.
+
 ## Тесты
 
 Запуск тестов
