@@ -87,7 +87,7 @@ def raw_sql_checker():
                 appointments=appointments,
                 user=user,
             )
-            if not is_in_limit:
+            if user.limit_days and (not is_in_limit):
                 continue
 
             time.sleep(0.2)

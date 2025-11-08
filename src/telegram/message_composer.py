@@ -24,7 +24,7 @@ class TgMessageComposer:
 
         message = (
             f"Врач {doctor_name} доступен для записи.\n"
-            + f"{nearest_appointment_str}"
+            + f"{nearest_appointment_str or ''}"
             + f"Мест для записи: {free_participant_count}.\n"
             + f"Талонов для записи: {free_ticket_count}.\n"
             + "\n"
