@@ -454,7 +454,5 @@ class SqliteDb:
             users.last_seen < datetime('now', ?)
         ;
         """
-        cursor = self.cursor.execute(q, (f"-{inactive_months} months",))
-        result = cursor.fetchall()
-        print(result)
+        self.cursor.execute(q, (f"-{inactive_months} months",))
         self.connection.commit()
