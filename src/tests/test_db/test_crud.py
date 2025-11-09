@@ -303,3 +303,31 @@ def test_get_active_doctors(
 #             assert user.id in [u.id for u in selected_users]
 #         else:
 #             assert user.id not in [u.id for u in selected_users]
+
+
+def test_inactivate_ping_for_old_users(test_db: SqliteDb):
+    new_user = DbUser(
+        id=1,
+        ping_status=True,
+        last_seen=datetime.datetime.now(datetime.UTC),
+    )
+    old_user = DbUser(
+        id=2,
+        ping_status=True,
+        last_seen=datetime.datetime.now(
+            datetime.timezone(offset=datetime.timedelta(hours=3))
+        )
+        - datetime.timedelta(days=90),
+    )
+    test_db.add_user(user=new_user)
+    test_db.add_user(user=old_user)
+
+    test_db.inactivate_ping_for_old_users(inactive_months=1)
+
+    db_new_user = test_db.get_user(user_id=new_user.id)
+    assert db_new_user is not None
+    assert db_new_user.ping_status is True
+
+    db_old_user = test_db.get_user(user_id=old_user.id)
+    assert db_old_user is not None
+    assert db_old_user.ping_status is False

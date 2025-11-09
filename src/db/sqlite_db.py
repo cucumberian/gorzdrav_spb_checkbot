@@ -442,3 +442,19 @@ class SqliteDb:
             else:
                 d[doctor.id].pinging_users.append(user)
         return d
+
+    def inactivate_ping_for_old_users(self, inactive_months: int):
+        """Отключает проверку у пользователей, которых не было видно больше указанного количества месяцев"""
+        if inactive_months < 1:
+            raise ValueError("inactive_months must be >= 1")
+        q = """
+        UPDATE users
+            SET ping_status = 0
+        WHERE
+            users.last_seen < datetime('now', ?)
+        ;
+        """
+        cursor = self.cursor.execute(q, (f"-{inactive_months} months",))
+        result = cursor.fetchall()
+        print(result)
+        self.connection.commit()

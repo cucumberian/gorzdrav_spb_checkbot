@@ -26,6 +26,7 @@ def old_scheduler(timeout_secs: int):
     time.sleep(2)
     logger.info("old scheduler started")
     while True:
+        DB.inactivate_ping_for_old_users(inactive_months=2)
         raw_sql_checker()
         time.sleep(timeout_secs)
 
