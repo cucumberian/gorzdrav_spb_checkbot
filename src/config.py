@@ -15,3 +15,8 @@ class Config:
     DSN_STRING = f"sqlite:///{DB_FILE}"
 
     LIMIT_DAYS_REGEX = r"^/\d{1,2}$"
+
+
+class LoggerConfig:
+    LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+    FORMAT = "%(asctime)s - %(levelname)s - %(name)s - %(message)s"

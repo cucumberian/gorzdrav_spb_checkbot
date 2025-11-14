@@ -1,8 +1,7 @@
 import logging
 import time
 
-
-from config import Config
+from config import Config, LoggerConfig
 from core.checker_app import CheckerApp
 from depends import sqlite_db as DB
 from gorzdrav.api import Gorzdrav
@@ -12,8 +11,8 @@ from telegram.message_composer import TgMessageComposer
 from telegram.types import TGParseMode
 
 logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+    level=LoggerConfig.LEVEL,
+    format=LoggerConfig.FORMAT,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,7 +33,8 @@ def old_scheduler(timeout_secs: int):
 def raw_sql_checker():
     """Проверяет нужных докторов и отправляет всем желающим пользователям сообщение о наличи талончика"""
     active_docs_with_users = DB.get_active_doctors_joined_users()
-    logger.debug("\nactive_docs_with_users: %s", active_docs_with_users)
+    logger.info("got %s pinging doctors", len(active_docs_with_users))
+    logger.debug("active_docs_with_users: %s", active_docs_with_users)
     for doc_with_users in active_docs_with_users.values():
         # запрашиваем информацию о враче у горздрава
         api_doctor: Doctor | None = Gorzdrav.get_doctor(
@@ -42,7 +42,7 @@ def raw_sql_checker():
             specialtyId=doc_with_users.specialtyId,
             doctorId=doc_with_users.doctorId,
         )
-        logger.debug(
+        logger.info(
             "api_doctor: %s",
             api_doctor.model_dump_json(indent=2) if api_doctor else None,
         )
@@ -89,9 +89,11 @@ def raw_sql_checker():
                 user=user,
             )
             if user.limit_days and (not is_in_limit):
+                logger.debug("doc not in user limit days %s", user.limit_days)
                 continue
 
             time.sleep(0.2)
+            logger.info("send message about doc to user: %s", user.id)
             CheckerApp.send_tg_message(
                 message=message,
                 api_token=Config.BOT_TOKEN,

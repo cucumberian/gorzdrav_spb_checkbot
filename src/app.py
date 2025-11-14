@@ -27,10 +27,11 @@ from models.pydantic_models import DbUser
 from states.states import STATES_NAMES, MiState
 from states.states import StateManager as SM
 from telegram.message_composer import TgMessageComposer
+from config import LoggerConfig
 
 logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+    level=LoggerConfig.LEVEL,
+    format=LoggerConfig.FORMAT,
 )
 logger = logging.getLogger(__name__)
 
