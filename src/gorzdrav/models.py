@@ -1,8 +1,7 @@
-import re
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class ApiResponse(BaseModel):
@@ -104,34 +103,3 @@ class LinkParsingResult(BaseModel):
     specialtyId: str
     doctorId: str | None = None
 
-
-class ApiReferralRequest(BaseModel):
-    referral_number_regex = re.compile(r"^\d{14}$")
-
-    @field_validator("referral_number")
-    def validate_referral_number(cls, v):
-        if not cls.referral_number_regex.match(v):
-            raise ValueError("Invalid referral number - must be 14 digits")
-        return v
-
-    referral_number: str = Field(..., min_length=14, max_length=14)
-    lastname: str = Field(description="Фамилия")
-
-
-class ApiReferralResponse(BaseModel):
-    lpuId: str
-    lpuShortName: str
-    lpuFullName: str
-    lpuAddress: str
-    lpuPhone: str
-    patId: str
-    lastName: str
-    firstName: str
-    middleName: str
-    polisN: Any | None = None
-    polisS: Any | None = None
-    birthDate: datetime
-    homePhoneNumber: str | None = None
-    mobilePhoneNumber: str | None = None
-    email: str | None = None
-    specialities: list[Any]
