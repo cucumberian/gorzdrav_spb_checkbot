@@ -5,6 +5,7 @@ from config import Config, LoggerConfig
 from core.checker_app import CheckerApp
 from depends import sqlite_db as DB
 from gorzdrav.api import Gorzdrav
+from gorzdrav.exceptions import GorzdravException
 from gorzdrav.models import ApiAppointment, Doctor
 from queries.orm import SyncOrm
 from telegram.message_composer import TgMessageComposer
@@ -37,15 +38,19 @@ def raw_sql_checker():
     logger.debug("active_docs_with_users: %s", active_docs_with_users)
     for doc_with_users in active_docs_with_users.values():
         # запрашиваем информацию о враче у горздрава
-        api_doctor: Doctor | None = Gorzdrav.get_doctor(
-            lpuId=doc_with_users.lpuId,
-            specialtyId=doc_with_users.specialtyId,
-            doctorId=doc_with_users.doctorId,
-        )
-        logger.info(
-            "api_doctor: %s",
-            api_doctor.model_dump_json(indent=2) if api_doctor else None,
-        )
+        try:
+            api_doctor: Doctor | None = Gorzdrav.get_doctor(
+                lpuId=doc_with_users.lpuId,
+                specialtyId=doc_with_users.specialtyId,
+                doctorId=doc_with_users.doctorId,
+            )
+            logger.info(
+                "api_doctor: %s",
+                api_doctor.model_dump_json(indent=2) if api_doctor else None,
+            )
+        except GorzdravException as e:
+            logger.error("Gorzdrav exception: %s", str(e))
+            continue
         if api_doctor is None:
             continue
 
