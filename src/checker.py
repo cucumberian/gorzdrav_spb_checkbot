@@ -51,7 +51,7 @@ def raw_sql_checker():
             )
         except Exception as e:
             logger.error(
-                "Gorzdrav exception: %s: ",
+                "Gorzdrav exception: %s: %s",
                 str(e),
                 traceback.format_exc(),
             )
