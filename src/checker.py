@@ -49,7 +49,7 @@ def raw_sql_checker():
                 "api_doctor: %s",
                 api_doctor.model_dump_json(indent=2) if api_doctor else None,
             )
-        except GorzdravExceptionBase as e:
+        except Exception as e:
             logger.error(
                 "Gorzdrav exception: %s: ",
                 str(e),
