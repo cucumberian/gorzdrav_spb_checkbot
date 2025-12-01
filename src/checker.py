@@ -1,11 +1,12 @@
 import logging
 import time
+import traceback
 
 from config import Config, LoggerConfig
 from core.checker_app import CheckerApp
 from depends import sqlite_db as DB
 from gorzdrav.api import Gorzdrav
-from gorzdrav.exceptions import GorzdravException
+from gorzdrav.exceptions import GorzdravExceptionBase
 from gorzdrav.models import ApiAppointment, Doctor
 from queries.orm import SyncOrm
 from telegram.message_composer import TgMessageComposer
@@ -48,8 +49,12 @@ def raw_sql_checker():
                 "api_doctor: %s",
                 api_doctor.model_dump_json(indent=2) if api_doctor else None,
             )
-        except GorzdravException as e:
-            logger.error("Gorzdrav exception: %s", str(e))
+        except GorzdravExceptionBase as e:
+            logger.error(
+                "Gorzdrav exception: %s: ",
+                str(e),
+                traceback.format_exc(),
+            )
             continue
         if api_doctor is None:
             continue
