@@ -45,16 +45,14 @@ def raw_sql_checker():
                 specialtyId=doc_with_users.specialtyId,
                 doctorId=doc_with_users.doctorId,
             )
-            logger.info(
+            logger.debug(
                 "api_doctor: %s",
                 api_doctor.model_dump_json(indent=2) if api_doctor else None,
             )
         except Exception as e:
-            logger.error(
-                "Gorzdrav exception: %s: %s",
-                str(e),
-                traceback.format_exc(),
-            )
+            # когда медучреждение не отвечает
+            logger.info("Gorzdrav exception: %s", str(e))
+            logger.debug("Exception traceback: %s", traceback.format_exc())
             continue
         if api_doctor is None:
             continue
